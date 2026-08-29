@@ -73,11 +73,3 @@ export interface PricesResponse {
   market: MarketStatus;
   quotes: QuoteMap;
 }
-
-/** Everything the UI needs to render one sleeve, money-free. */
-export interface SleeveView {
-  slug: string;
-  displayName: string;
-  inceptionDate: string;
-  isCombined: boolean;
-}

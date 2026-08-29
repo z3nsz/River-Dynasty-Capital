@@ -86,6 +86,16 @@ function isTradingDay(p: { weekday: number; dateKey: string }): boolean {
   return true;
 }
 
+/** "YYYY-MM-DD" for the given instant in US Eastern time. */
+export function etDateKey(date: Date = new Date()): string {
+  return etParts(date).dateKey;
+}
+
+/** True if the given instant falls on a US equity trading day (ET calendar). */
+export function isUsTradingDay(date: Date = new Date()): boolean {
+  return isTradingDay(etParts(date));
+}
+
 /**
  * Find the next session open at or after `from`, scanning day by day (max ~10
  * days to skip long holiday weekends). Returns an ET wall-clock description.

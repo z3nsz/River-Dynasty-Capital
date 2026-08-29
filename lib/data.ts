@@ -1,10 +1,10 @@
 /**
  * Loads portfolio data from Supabase and shapes it for the UI. Server-side.
- * Builds the synthetic "Combined" sleeve. Never emits money.
+ * Single fund ("Seine's Fund"); never emits money.
  */
 
 import { getPublicClient } from "@/lib/supabase/public";
-import { COMBINED_SLUG, BENCHMARK_SYMBOL } from "@/lib/config";
+import { BENCHMARK_SYMBOL } from "@/lib/config";
 import type { Sleeve, Position, Snapshot, QuoteMap } from "@/lib/types";
 import type {
   HoldingInput,
@@ -47,68 +47,6 @@ export async function loadPortfolio(): Promise<PortfolioData> {
   };
 }
 
-export interface SleeveOption {
-  slug: string;
-  displayName: string;
-  isCombined: boolean;
-}
-
-export function sleeveOptions(sleeves: Sleeve[]): SleeveOption[] {
-  const real = [...sleeves]
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((s) => ({
-      slug: s.slug,
-      displayName: s.display_name,
-      isCombined: false,
-    }));
-  return [
-    { slug: COMBINED_SLUG, displayName: "Combined", isCombined: true },
-    ...real,
-  ];
-}
-
-function earliest(dates: string[]): string {
-  return dates.slice().sort()[0];
-}
-
-export function resolveMeta(
-  slug: string,
-  sleeves: Sleeve[],
-): SleeveMeta | null {
-  if (slug === COMBINED_SLUG) {
-    if (sleeves.length === 0) return null;
-    const inception = earliest(sleeves.map((s) => s.inception_date));
-    const earlierSleeve =
-      sleeves.find((s) => s.inception_date === inception) ?? sleeves[0];
-    return {
-      slug: COMBINED_SLUG,
-      displayName: "Combined",
-      inceptionDate: inception,
-      spInceptionPrice: earlierSleeve.sp_inception_price,
-      isCombined: true,
-    };
-  }
-  const s = sleeves.find((x) => x.slug === slug);
-  if (!s) return null;
-  return {
-    slug: s.slug,
-    displayName: s.display_name,
-    inceptionDate: s.inception_date,
-    spInceptionPrice: s.sp_inception_price,
-    isCombined: false,
-  };
-}
-
-/** Normalised combined weight for a sleeve (defaults to equal split). */
-function combinedWeights(sleeves: Sleeve[]): Map<string, number> {
-  const total = sleeves.reduce((s, x) => s + (x.combined_weight || 0), 0);
-  const m = new Map<string, number>();
-  for (const s of sleeves) {
-    m.set(s.id, total > 0 ? (s.combined_weight || 0) / total : 1 / sleeves.length);
-  }
-  return m;
-}
-
 export interface SelectedSleeve {
   meta: SleeveMeta;
   holdings: HoldingInput[];
@@ -116,68 +54,56 @@ export interface SelectedSleeve {
   snapshots: Snapshot[];
 }
 
-export function selectSleeve(
-  slug: string,
-  data: PortfolioData,
-): SelectedSleeve | null {
-  const meta = resolveMeta(slug, data.sleeves);
-  if (!meta) return null;
+/** The one fund. Returns null only if no sleeve rows exist. */
+export function primarySleeve(data: PortfolioData): Sleeve | null {
+  return (
+    [...data.sleeves].sort((a, b) => a.sort_order - b.sort_order)[0] ?? null
+  );
+}
 
-  const isCombined = slug === COMBINED_SLUG;
-  const cw = combinedWeights(data.sleeves);
-  const bySleeveId = new Map(data.sleeves.map((s) => [s.id, s]));
+export function selectFund(data: PortfolioData): SelectedSleeve | null {
+  const sleeve = primarySleeve(data);
+  if (!sleeve) return null;
 
-  const relevant = isCombined
-    ? data.positions
-    : data.positions.filter((p) => {
-        const s = bySleeveId.get(p.sleeve_id);
-        return s?.slug === slug;
-      });
+  const meta: SleeveMeta = {
+    slug: sleeve.slug,
+    displayName: sleeve.display_name,
+    inceptionDate: sleeve.inception_date,
+    spInceptionPrice: sleeve.sp_inception_price,
+  };
 
-  const holdings: HoldingInput[] = relevant
+  const mine = data.positions.filter((p) => p.sleeve_id === sleeve.id);
+
+  const holdings: HoldingInput[] = mine
     .filter((p) => p.status === "open")
-    .map((p) => {
-      const s = bySleeveId.get(p.sleeve_id)!;
-      const scale = isCombined ? cw.get(p.sleeve_id) ?? 1 : 1;
-      return {
-        id: p.id,
-        ticker: p.ticker,
-        company: p.company,
-        entryPrice: p.entry_price,
-        entryDate: p.entry_date,
-        weightPct: p.weight_pct * scale,
-        thesis: p.thesis,
-        sleeveSlug: s.slug,
-        sleeveName: s.display_name,
-        manualPrice: p.current_price,
-      };
-    });
+    .map((p) => ({
+      id: p.id,
+      ticker: p.ticker,
+      company: p.company,
+      entryPrice: p.entry_price,
+      entryDate: p.entry_date,
+      weightPct: p.weight_pct,
+      thesis: p.thesis,
+      sleeveName: sleeve.display_name,
+      manualPrice: p.current_price,
+    }));
 
-  const closed: ClosedInput[] = relevant
+  const closed: ClosedInput[] = mine
     .filter((p) => p.status === "closed")
-    .map((p) => {
-      const s = bySleeveId.get(p.sleeve_id)!;
-      return {
-        id: p.id,
-        ticker: p.ticker,
-        company: p.company,
-        entryPrice: p.entry_price,
-        entryDate: p.entry_date,
-        exitPrice: p.exit_price,
-        exitDate: p.exit_date,
-        weightPct: p.weight_pct,
-        thesis: p.thesis,
-        sleeveSlug: s.slug,
-        sleeveName: s.display_name,
-      };
-    });
+    .map((p) => ({
+      id: p.id,
+      ticker: p.ticker,
+      company: p.company,
+      entryPrice: p.entry_price,
+      entryDate: p.entry_date,
+      exitPrice: p.exit_price,
+      exitDate: p.exit_date,
+      weightPct: p.weight_pct,
+      thesis: p.thesis,
+      sleeveName: sleeve.display_name,
+    }));
 
-  const snapshots = isCombined
-    ? data.snapshots.filter((s) => s.sleeve_id === null)
-    : data.snapshots.filter((s) => {
-        const sl = data.sleeves.find((x) => x.id === s.sleeve_id);
-        return sl?.slug === slug;
-      });
+  const snapshots = data.snapshots.filter((s) => s.sleeve_id === sleeve.id);
 
   return { meta, holdings, closed, snapshots };
 }

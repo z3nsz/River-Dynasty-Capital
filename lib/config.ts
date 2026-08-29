@@ -22,8 +22,6 @@ export const RECENT_POINTS_CAP = 120;
 /** Minimum gap between appended sparkline points (avoid dupes on rapid refresh). */
 export const RECENT_MIN_GAP_MS = 55_000;
 
-export const COMBINED_SLUG = "combined";
-
 // ---- server-only -----------------------------------------------------------
 
 export function supabaseConfig() {

@@ -13,15 +13,13 @@ delete from public.price_cache;
 delete from public.sleeves;
 
 -- --------------------------------------------------------------------------
--- Sleeves. Inception 2023-01-03. SPY closed at 380.82 that day.
+-- The fund. Inception 2023-01-03. SPY closed at 380.82 that day.
 -- --------------------------------------------------------------------------
 insert into public.sleeves (slug, display_name, inception_date, sp_inception_price, combined_weight, sort_order)
-values
-  ('seine',       'Seine',        date '2023-01-03', 380.82, 0.5, 1),
-  ('portfolio-2', 'Portfolio II', date '2023-01-03', 380.82, 0.5, 2);
+values ('seine', 'Seine''s Fund', date '2023-01-03', 380.82, 1, 1);
 
 -- --------------------------------------------------------------------------
--- Seine positions
+-- Positions
 -- --------------------------------------------------------------------------
 insert into public.positions (sleeve_id, ticker, company, entry_price, entry_date, weight_pct, current_price, thesis, status)
 select id, v.ticker, v.company, v.entry_price, v.entry_date, v.weight_pct, v.current_price, v.thesis, 'open'
@@ -43,36 +41,15 @@ cross join (values
 where s.slug = 'seine';
 
 -- --------------------------------------------------------------------------
--- Portfolio II positions (sibling account)
--- --------------------------------------------------------------------------
-insert into public.positions (sleeve_id, ticker, company, entry_price, entry_date, weight_pct, current_price, thesis, status)
-select id, v.ticker, v.company, v.entry_price, v.entry_date, v.weight_pct, v.current_price, v.thesis, 'open'
-from public.sleeves s
-cross join (values
-  ('VOO',  'Vanguard S&P 500 ETF', 360.00, date '2023-01-09', 40, 585.00,
-   'Core beta at a rock-bottom fee. The humility position: most active bets should be measured against this.'),
-  ('MSFT', 'Microsoft Corp.',      240.00, date '2023-01-09', 30, 505.00,
-   'Enterprise software plus cloud plus a distribution advantage in AI. A durable compounder we are happy to hold quietly.'),
-  ('LLY',  'Eli Lilly & Co.',      340.00, date '2023-01-09', 20, 780.00,
-   'Incretin franchise with a multi-year demand runway and real pipeline optionality behind it.'),
-  ('SBUX', 'Starbucks Corp.',      100.00, date '2023-01-09', 10, 95.00,
-   'Turnaround bet on brand and store economics. Sized small until store traffic actually inflects.')
-) as v(ticker, company, entry_price, entry_date, weight_pct, current_price, thesis)
-where s.slug = 'portfolio-2';
-
--- --------------------------------------------------------------------------
--- Inception snapshots — both indices start at 100. The app appends a live
--- "today" point on top of these; log more from the admin panel over time.
+-- Inception snapshot — both indices start at 100. The app appends a live
+-- "today" point; the daily cron records one per trading day from then on.
 -- --------------------------------------------------------------------------
 insert into public.snapshots (sleeve_id, date, portfolio_index, sp_index)
 select id, inception_date, 100, 100 from public.sleeves;
-insert into public.snapshots (sleeve_id, date, portfolio_index, sp_index)
-values (null, date '2023-01-03', 100, 100);   -- Combined
 
 -- --------------------------------------------------------------------------
 -- Seed the price cache so the site renders immediately before the first
--- Finnhub refresh. These are placeholder quotes; the first refresh (cron or
--- the admin "Refresh prices" button) overwrites them with live data.
+-- Finnhub refresh. Placeholder quotes — overwritten on the first refresh.
 -- --------------------------------------------------------------------------
 insert into public.price_cache (symbol, price, prev_close, as_of, recent) values
   ('NVDA',  172.80,  171.10, now(), '[]'),
@@ -81,10 +58,6 @@ insert into public.price_cache (symbol, price, prev_close, as_of, recent) values
   ('V',     319.00,  318.10, now(), '[]'),
   ('ASML',  1023.00, 1015.0, now(), '[]'),
   ('NKE',   90.00,   90.60,  now(), '[]'),
-  ('VOO',   585.00,  583.20, now(), '[]'),
-  ('MSFT',  505.00,  503.10, now(), '[]'),
-  ('LLY',   780.00,  776.40, now(), '[]'),
-  ('SBUX',  95.00,   95.40,  now(), '[]'),
   ('SPY',   620.00,  618.30, now(), '[]');
 
 commit;

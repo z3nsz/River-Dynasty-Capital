@@ -7,7 +7,7 @@ export function Footer() {
       </p>
       <p className="mt-2 max-w-prose">
         All figures are percentages and index values. Returns are computed from
-        entry price versus current price per holding; the sleeve return is the
+        entry price versus current price per holding; the fund return is the
         weight-weighted average of holding returns. Prices are cached server-side
         and may be delayed — see the timestamp above.
       </p>

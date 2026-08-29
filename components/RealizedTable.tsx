@@ -3,13 +3,7 @@ import { longDate } from "@/lib/format";
 import type { ClosedRow } from "@/lib/sleeveMetrics";
 
 /** Closed / sold positions — kept visible so the record stays honest. */
-export function RealizedTable({
-  closed,
-  isCombined,
-}: {
-  closed: ClosedRow[];
-  isCombined: boolean;
-}) {
+export function RealizedTable({ closed }: { closed: ClosedRow[] }) {
   if (closed.length === 0) {
     return (
       <section aria-labelledby="realized-heading" className="mt-12">
@@ -45,9 +39,6 @@ export function RealizedTable({
               <div className="min-w-0">
                 <span className="tnum font-semibold">{c.ticker}</span>{" "}
                 <span className="text-sm text-muted">{c.company}</span>
-                {isCombined && (
-                  <span className="text-xs text-muted"> · {c.sleeveName}</span>
-                )}
               </div>
               <div className="tnum text-xs text-muted">
                 held {longDate(c.entryDate)} →{" "}

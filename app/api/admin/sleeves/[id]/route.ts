@@ -8,7 +8,6 @@ const EDITABLE = new Set([
   "display_name",
   "inception_date",
   "sp_inception_price",
-  "combined_weight",
   "sort_order",
 ]);
 
@@ -24,7 +23,7 @@ export async function PATCH(
   const patch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
     if (!EDITABLE.has(k)) continue;
-    if (["sp_inception_price", "combined_weight", "sort_order"].includes(k)) {
+    if (["sp_inception_price", "sort_order"].includes(k)) {
       const n = Number(v);
       if (Number.isFinite(n)) patch[k] = n;
     } else {

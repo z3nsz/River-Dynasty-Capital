@@ -185,9 +185,9 @@ export function AdminDashboard({
         </div>
       </section>
 
-      {/* sleeves */}
+      {/* fund */}
       <section className="mt-8">
-        <h2 className="font-display text-lg">Sleeves</h2>
+        <h2 className="font-display text-lg">Fund</h2>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           {sleeves.map((s) => (
             <SleeveEditor
@@ -198,7 +198,7 @@ export function AdminDashboard({
                 run(
                   `sleeve-${s.id}`,
                   () => api(`/api/admin/sleeves/${s.id}`, "PATCH", patch),
-                  "sleeve saved",
+                  "fund saved",
                 )
               }
             />
@@ -211,9 +211,6 @@ export function AdminDashboard({
         <h2 className="font-display text-lg">Positions</h2>
         {sleeves.map((s) => (
           <div key={s.id} className="mt-4">
-            <h3 className="tnum text-sm font-semibold text-muted">
-              {s.display_name}
-            </h3>
             <div className="mt-2 space-y-2">
               {(bySleeve.get(s.id) ?? [])
                 .filter((p) => p.status === "open")
@@ -288,12 +285,159 @@ export function AdminDashboard({
         />
       </section>
 
+      {/* performance history */}
+      <section className="mt-10">
+        <h2 className="font-display text-lg">Performance history</h2>
+        <p className="mt-1 max-w-prose text-xs text-muted">
+          The growth chart records a point automatically after every US trading
+          day (via the daily cron). Use this to import history you already have,
+          or to correct a day. Enter the fund&rsquo;s and the S&amp;P 500&rsquo;s{" "}
+          <em>total return since inception</em> as of that date, in percent.
+        </p>
+        <HistoryEditor
+          fundName={sleeves[0]?.display_name ?? "Fund"}
+          snapshots={snapshots}
+          busy={busy === "history"}
+          onSave={(body) =>
+            run("history", () => api("/api/admin/snapshots", "POST", body), "history point saved")
+          }
+          onDelete={(date) =>
+            run(
+              "history",
+              () => api("/api/admin/snapshots", "DELETE", { date }),
+              "history point removed",
+            )
+          }
+          onSnapshotNow={() =>
+            run("history", () => api("/api/admin/snapshot", "POST"), "snapshot logged")
+          }
+        />
+      </section>
+
       <p className="mt-12 text-xs text-muted">
         Prices are per-share quotes used only to compute percentage returns. The
         public site never shows any monetary amount.
       </p>
     </div>
   );
+}
+
+/* ------------------------------------------------------- history editor */
+
+function HistoryEditor({
+  fundName,
+  snapshots,
+  onSave,
+  onDelete,
+  onSnapshotNow,
+  busy,
+}: {
+  fundName: string;
+  snapshots: Snapshot[];
+  onSave: (body: Record<string, unknown>) => void;
+  onDelete: (date: string) => void;
+  onSnapshotNow: () => void;
+  busy: boolean;
+}) {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [sp, setSp] = useState("");
+  const [ret, setRet] = useState("");
+
+  const byDate = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const s of snapshots) m.set(s.date, Number(s.portfolio_index));
+    return [...m.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [snapshots]);
+
+  const valid = DATE_OK(date) && sp !== "" && ret !== "";
+
+  return (
+    <div className="mt-3 space-y-4">
+      <div className="rounded-sm border border-hairline p-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Date">
+            <input
+              type="date"
+              className={inputCls}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </Field>
+          <Field label={`${fundName} return since inception %`}>
+            <input
+              className={inputCls}
+              value={ret}
+              placeholder="e.g. 96.6"
+              onChange={(e) => setRet(e.target.value)}
+            />
+          </Field>
+          <Field label="S&P 500 return since inception %">
+            <input
+              className={inputCls}
+              value={sp}
+              placeholder="e.g. 41.6"
+              onChange={(e) => setSp(e.target.value)}
+            />
+          </Field>
+        </div>
+        <button
+          type="button"
+          disabled={busy || !valid}
+          onClick={() =>
+            onSave({
+              date,
+              sp_return_pct: Number(sp),
+              portfolio_return_pct: Number(ret),
+            })
+          }
+          className="mt-3 rounded-sm bg-navy px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-50"
+        >
+          {busy ? "saving…" : "Save history point"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onSnapshotNow}
+          className="ml-2 rounded-sm border border-navy px-3 py-1.5 text-xs font-medium text-navy disabled:opacity-50"
+        >
+          Snapshot today from live prices
+        </button>
+      </div>
+
+      <div className="rounded-sm border border-hairline p-4">
+        <div className="text-xs font-semibold text-muted">
+          Recorded points ({byDate.length})
+        </div>
+        <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto text-xs">
+          {byDate.map(([d, idx]) => (
+            <li key={d} className="tnum flex items-center justify-between gap-2">
+              <span>
+                {d}
+                <span className="text-muted"> · index {idx.toFixed(1)}</span>
+              </span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  if (confirm(`Remove the ${d} history point?`)) onDelete(d);
+                }}
+                className="rounded-sm border border-hairline px-1.5 py-0.5 hover:bg-loss/5 hover:text-loss"
+              >
+                remove
+              </button>
+            </li>
+          ))}
+          {byDate.length === 0 && (
+            <li className="text-muted">No points recorded yet.</li>
+          )}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function DATE_OK(s: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
 /* --------------------------------------------------------- sleeve editor */
@@ -310,12 +454,11 @@ function SleeveEditor({
   const [name, setName] = useState(sleeve.display_name);
   const [inception, setInception] = useState(sleeve.inception_date);
   const [spPrice, setSpPrice] = useState(String(sleeve.sp_inception_price));
-  const [cw, setCw] = useState(String(sleeve.combined_weight));
 
   return (
     <div className="rounded-sm border border-hairline p-3">
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Display name">
+        <Field label="Fund name">
           <input
             className={inputCls}
             value={name}
@@ -330,18 +473,11 @@ function SleeveEditor({
             onChange={(e) => setInception(e.target.value)}
           />
         </Field>
-        <Field label="S&P price at inception">
+        <Field label="S&P 500 price at inception">
           <input
             className={inputCls}
             value={spPrice}
             onChange={(e) => setSpPrice(e.target.value)}
-          />
-        </Field>
-        <Field label="Combined weight (0–1)">
-          <input
-            className={inputCls}
-            value={cw}
-            onChange={(e) => setCw(e.target.value)}
           />
         </Field>
       </div>
@@ -353,12 +489,11 @@ function SleeveEditor({
             display_name: name,
             inception_date: inception,
             sp_inception_price: Number(spPrice),
-            combined_weight: Number(cw),
           })
         }
         className="mt-3 rounded-sm bg-navy px-3 py-1.5 text-xs font-medium text-paper disabled:opacity-50"
       >
-        {busy ? "saving…" : "Save sleeve"}
+        {busy ? "saving…" : "Save"}
       </button>
     </div>
   );
@@ -543,19 +678,21 @@ function AddPositionForm({
   return (
     <div className="mt-3 rounded-sm border border-hairline p-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Sleeve">
-          <select
-            className={inputCls}
-            value={f.sleeve_id}
-            onChange={(e) => set("sleeve_id", e.target.value)}
-          >
-            {sleeves.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.display_name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {sleeves.length > 1 && (
+          <Field label="Sleeve">
+            <select
+              className={inputCls}
+              value={f.sleeve_id}
+              onChange={(e) => set("sleeve_id", e.target.value)}
+            >
+              {sleeves.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Ticker">
           <input
             className={inputCls}

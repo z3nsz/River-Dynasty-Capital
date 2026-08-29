@@ -20,12 +20,13 @@ compute percentage returns; they are never shown as money.
 
 ## What it looks like
 
-- **Masthead** — wordmark, tagline, and a **Combined / Seine / Portfolio II**
-  sleeve toggle (the selected sleeve is in the URL, so links are shareable).
+- **Masthead** — wordmark, tagline, and the fund name ("Seine's Fund") with its
+  inception date.
 - **Headline stats** — total return since inception, annualized CAGR, S&P 500
   return over the same period, and excess return vs the benchmark (in points).
 - **Indexed growth chart** — portfolio (solid) vs S&P 500 (dashed), both indexed
-  to 100 at inception, ending values labelled.
+  to 100, ending values labelled, with **5D / 1M / 3M / 6M / YTD / 1Y / 5Y / All**
+  timeframe buttons (shorter ranges re-base to 100 at the window start).
 - **Holdings** — one row per open position: ticker, company, price sparkline,
   return %, weight bar, thesis. Sortable by weight / return / ticker.
 - **Realized / closed** — sold positions with entry date, exit date, realized %.
@@ -34,18 +35,14 @@ compute percentage returns; they are never shown as money.
 
 ---
 
-## Portfolios ("sleeves")
+## The fund
 
-Two sleeves under one brand, plus a Combined view:
+One portfolio, **Seine's Fund** (slug `seine`). Its display name, inception
+date, and the S&P 500 price at inception are editable in the admin panel under
+**Fund**.
 
-| Sleeve         | Default name   | Notes                                  |
-| -------------- | -------------- | -------------------------------------- |
-| `seine`        | Seine          | Your main account                      |
-| `portfolio-2`  | Portfolio II   | A sibling's account you help manage    |
-| `combined`     | Combined       | Both sleeves aggregated (50/50 default) |
-
-Names, inception dates, and the Combined split are all editable in the admin
-panel.
+(The `sleeves` table still allows multiple rows if you ever want to add a second
+portfolio — the app just renders the first one today.)
 
 ---
 
@@ -81,7 +78,7 @@ Node 18.18+ is required (this project was built and tested on Node 26).
 2. In the project, open **SQL Editor** → **New query**. Paste the entire
    contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**.
 3. New query again. Paste [`supabase/seed.sql`](supabase/seed.sql) and **Run**.
-   This loads the sample sleeves, positions, and inception snapshots so the site
+   This loads the sample fund, positions, and inception snapshot so the site
    renders immediately.
 4. Open **Project Settings → API**. You need three values:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
@@ -128,8 +125,9 @@ npm run dev
 Open <http://localhost:3000> — the public site.
 Open <http://localhost:3000/admin> — log in with `ADMIN_PASSWORD`.
 
-In the admin panel click **Refresh prices** once to pull live quotes, then
-**Log snapshot** to put the first real point on the growth chart.
+In the admin panel click **Refresh prices** once to pull live quotes. Optionally,
+under **Performance history**, enter a few past monthly return figures to seed
+the growth chart — from then on the daily cron records new points automatically.
 
 ---
 
@@ -210,15 +208,28 @@ Limits: US symbols only, ~50 symbol cap on the free tier, and some ETFs/class
 shares never emit trades. It degrades cleanly to the 60-second polling if the
 socket drops. Leave it blank and polling alone is perfectly fine.
 
-### The growth chart
+### The growth chart & performance history
 
-The indexed growth chart is driven by the `snapshots` table (`date`,
-`portfolio_index`, `sp_index`, both starting at 100). It does **not** tick
-intraday — only the current point moves with live prices. Log a snapshot monthly
-from the admin panel. Finnhub's free tier has **no historical price endpoint**,
-so the series cannot be back-filled automatically; it builds up over time from
-the snapshots you log. (`scripts/backfill-snapshots.ts` is a stub for if you
-later add a data source that does have history.)
+The chart is driven by the `snapshots` table — one row per day:
+`{ date, portfolio_index, sp_index }`, both indexed to 100 at inception. It does
+**not** tick intraday; only the current live point moves with prices.
+
+**Recording is automatic.** The daily cron (see above) writes a snapshot after
+each US trading day, so the history accumulates with no manual work. You can
+also hit **Snapshot today from live prices** in the admin panel anytime.
+
+**Importing an existing track record.** Finnhub's free tier has no historical
+price endpoint, so the past can't be reconstructed from prices. Instead, in the
+admin panel under **Performance history**, enter the fund's and the S&P 500's
+*total return since inception* (in %) as of any past date — monthly points are
+plenty. Re-entering a date overwrites it. (`scripts/backfill-snapshots.ts` is a
+stub for if you later add a data source that does have daily history.)
+
+**Timeframe selector.** The chart has **5D / 1M / 3M / 6M / YTD / 1Y / 5Y / All**
+buttons. Any range shorter than "All" is **re-based to 100 at the start of that
+window**, so you read the period's move directly off the axis; the legend shows
+the period return for the fund and the benchmark. Windows with too few recorded
+points yet fall back to showing all history, clearly labelled.
 
 ---
 
@@ -226,17 +237,14 @@ later add a data source that does have history.)
 
 ```
 holding return   = (current price − entry price) / entry price
-sleeve return    = Σ( weightᵢ / Σweight × holding returnᵢ )   over open positions
+fund return      = Σ( weightᵢ / Σweight × holding returnᵢ )   over open positions
 CAGR             = (1 + total return) ^ (365.25 / days since inception) − 1
 benchmark return = SPY current / SPY price on inception date − 1
-excess (points)  = (sleeve return − benchmark return) × 100
+excess (points)  = (fund return − benchmark return) × 100
 ```
 
-The SPY price on the inception date is stored per sleeve
-(`sleeves.sp_inception_price`) — that's how the benchmark is computed without a
-paid history API. Combined = the combined-weighted average of the two sleeve
-returns; its holdings list is the union with weights scaled by each sleeve's
-`combined_weight`.
+The SPY price on the inception date is stored in `sleeves.sp_inception_price` —
+that's how the benchmark is computed without a paid history API.
 
 ---
 
@@ -259,16 +267,17 @@ app/
   admin/                   login page + dashboard
   api/
     prices/                public cached-quotes endpoint (polled by the page)
-    cron/refresh/          scheduled price refresh (CRON_SECRET)
-    admin/                  password-gated write endpoints
-components/                masthead, chart, holdings table, market badge, admin UI
+    cron/refresh/          daily job: refresh prices + record a snapshot (CRON_SECRET)
+    admin/                  password-gated write endpoints (incl. snapshots/)
+components/                masthead, chart (timeframe selector), holdings, admin UI
 lib/
   returns.ts               pure return math  (unit-tested)
   market.ts                US market-hours logic  (unit-tested)
   sleeveMetrics.ts         isomorphic derived-metrics (server + client agree)
   prices.ts                server-side price cache + refresh + lock
+  snapshots.ts             records the daily performance-history point
   finnhub.ts               quote fetching with retry/back-off
-  data.ts                  Supabase reads + Combined sleeve
+  data.ts                  Supabase reads + fund selection
   auth.ts                  signed-cookie session
 supabase/
   schema.sql               tables, RLS, indexes  ← run first

@@ -10,13 +10,7 @@ import type { HoldingRow } from "@/lib/sleeveMetrics";
 
 type SortKey = "weight" | "return" | "ticker";
 
-export function HoldingsTable({
-  holdings,
-  isCombined,
-}: {
-  holdings: HoldingRow[];
-  isCombined: boolean;
-}) {
+export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
   const { changed } = useLivePrices();
   const [sortKey, setSortKey] = useState<SortKey>("weight");
   const [dir, setDir] = useState<1 | -1>(-1);
@@ -88,7 +82,6 @@ export function HoldingsTable({
                 <div className="truncate text-sm text-muted">{h.company}</div>
                 <div className="tnum mt-0.5 text-xs text-muted">
                   entry {longDate(h.entryDate)}
-                  {isCombined ? ` · ${h.sleeveName}` : ""}
                   {h.priceSource === "manual" ? " · manual price" : ""}
                   {h.priceSource === "none" ? " · no price" : ""}
                 </div>
@@ -119,7 +112,7 @@ export function HoldingsTable({
       </ul>
 
       {holdings.length === 0 && (
-        <p className="py-8 text-sm text-muted">No open positions in this sleeve.</p>
+        <p className="py-8 text-sm text-muted">No open positions.</p>
       )}
 
       <p className="tnum mt-3 text-xs text-muted">

@@ -24,10 +24,8 @@ export interface HoldingInput {
   company: string;
   entryPrice: number;
   entryDate: string;
-  /** For Combined this is weight_pct scaled by the sleeve's combined weight. */
   weightPct: number;
   thesis: string;
-  sleeveSlug: string;
   sleeveName: string;
   /** Manual fallback price from the positions table; used when no live quote. */
   manualPrice: number | null;
@@ -43,7 +41,6 @@ export interface ClosedInput {
   exitDate: string | null;
   weightPct: number;
   thesis: string;
-  sleeveSlug: string;
   sleeveName: string;
 }
 
@@ -52,7 +49,6 @@ export interface SleeveMeta {
   displayName: string;
   inceptionDate: string;
   spInceptionPrice: number;
-  isCombined: boolean;
 }
 
 export interface HoldingRow extends HoldingInput {
