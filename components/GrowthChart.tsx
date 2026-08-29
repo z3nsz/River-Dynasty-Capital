@@ -102,11 +102,7 @@ export function GrowthChart({
         <span className="font-display text-lg">Indexed growth</span>
         <span className="text-xs text-muted">
           Indexed to 100 at{" "}
-          {range === "ALL" || truncated
-            ? "inception"
-            : windowStart
-              ? longDate(windowStart)
-              : "start of period"}
+          {windowStart ? longDate(windowStart) : "the start"}
         </span>
       </figcaption>
 
@@ -183,7 +179,9 @@ export function GrowthChart({
         </span>
         <span>
           {range === "ALL" || truncated
-            ? "since inception"
+            ? windowStart
+              ? `since ${longDate(windowStart)}`
+              : "since the start"
             : `over ${rangeLabel(range)}`}
         </span>
         {truncated ? (

@@ -41,11 +41,11 @@ cross join (values
 where s.slug = 'seine';
 
 -- --------------------------------------------------------------------------
--- Inception snapshot — both indices start at 100. The app appends a live
--- "today" point; the daily cron records one per trading day from then on.
+-- No historical snapshots are seeded. The growth chart re-bases to 100 at the
+-- first recorded point, and the daily cron records one point per trading day
+-- from your first deploy onward — so the chart tracks performance from the day
+-- you start running the site, not a back-dated straight line.
 -- --------------------------------------------------------------------------
-insert into public.snapshots (sleeve_id, date, portfolio_index, sp_index)
-select id, inception_date, 100, 100 from public.sleeves;
 
 -- --------------------------------------------------------------------------
 -- Seed the price cache so the site renders immediately before the first
