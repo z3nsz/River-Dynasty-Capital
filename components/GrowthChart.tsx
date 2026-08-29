@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { pct, indexValue, longDate, monthYear } from "@/lib/format";
+import { pct, longDate, monthYear } from "@/lib/format";
 import { BENCHMARK_LABEL } from "@/lib/config";
 import type { Snapshot } from "@/lib/types";
 
@@ -10,17 +10,22 @@ const RANGES: Range[] = ["5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "ALL"];
 
 interface Pt {
   date: string;
+  /** cumulative return since inception, in percent (e.g. 47.6) */
   portfolio: number;
   sp: number;
   live?: boolean;
 }
 
+/** "+47.6%" / "−12.0%" / "0.0%" */
+function fmtPct(v: number): string {
+  return pct(v / 100, 1);
+}
+
 /**
- * Indexed growth chart. Values are absolute — indexed to 100 at the fund's
- * inception, so "237" means +137% since inception. The chart is NOT re-based:
- * the timeframe buttons only zoom the x-axis (and rescale the y-axis to fit the
- * visible data). Recorded history begins at the first snapshot on file; a live
- * "now" point is always drawn on the end. Never renders "$".
+ * Performance chart: cumulative % return since inception for the fund vs the
+ * S&P 500. The stored snapshots are 100-indexed; here they're shown as return
+ * (index − 100), so today reads e.g. "+47.6%". Timeframe buttons zoom the
+ * x-axis and rescale the y-axis. A live "now" point is always drawn. No "$".
  */
 export function GrowthChart({
   snapshots,
@@ -38,13 +43,18 @@ export function GrowthChart({
     const s: Pt[] = snapshots
       .map((r) => ({
         date: r.date,
-        portfolio: Number(r.portfolio_index),
-        sp: Number(r.sp_index),
+        portfolio: Number(r.portfolio_index) - 100,
+        sp: Number(r.sp_index) - 100,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
     if (live && live.portfolio != null && live.sp != null) {
-      const livePt: Pt = { date: today, portfolio: live.portfolio, sp: live.sp, live: true };
+      const livePt: Pt = {
+        date: today,
+        portfolio: live.portfolio - 100,
+        sp: live.sp - 100,
+        live: true,
+      };
       if (s.length && s[s.length - 1].date === today) s[s.length - 1] = livePt;
       else s.push(livePt);
     }
@@ -52,26 +62,24 @@ export function GrowthChart({
   }, [snapshots, live, today]);
 
   const recordedFrom = full.length ? full[0].date : null;
-
   const { view, thin, truncated } = useMemo(() => windowed(full, range), [full, range]);
 
   const width = 720;
   const height = 260;
-  const padL = 48;
-  const padR = 60;
+  const padL = 52;
+  const padR = 64;
   const padT = 16;
   const padB = 28;
 
-  const allVals = view.flatMap((p) => [p.portfolio, p.sp]);
-  const rawMin = allVals.length ? Math.min(...allVals) : 100;
-  const rawMax = allVals.length ? Math.max(...allVals) : 100;
+  const vals = view.flatMap((p) => [p.portfolio, p.sp]);
+  const rawMin = vals.length ? Math.min(...vals, 0) : -1;
+  const rawMax = vals.length ? Math.max(...vals, 0) : 1;
   let vlo: number;
   let vhi: number;
-  if (rawMax - rawMin < 0.5) {
+  if (rawMax - rawMin < 1) {
     const c = (rawMax + rawMin) / 2;
-    const pad = Math.max(2, c * 0.02);
-    vlo = c - pad;
-    vhi = c + pad;
+    vlo = c - 2;
+    vhi = c + 2;
   } else {
     const span = rawMax - rawMin;
     vlo = rawMin - span * 0.12;
@@ -97,30 +105,20 @@ export function GrowthChart({
   const last = view[view.length - 1];
   const first = view[0];
   const gridVals = niceTicks(vlo, vhi, 4);
+  const zeroInRange = vlo < 0 && vhi > 0;
 
-  // Legend readout: since inception for "All", else the move over the window.
-  const portReturn =
-    !last
-      ? null
-      : range === "ALL"
-        ? last.portfolio / 100 - 1
-        : first.portfolio > 0
-          ? last.portfolio / first.portfolio - 1
-          : null;
-  const spReturn =
-    !last
-      ? null
-      : range === "ALL"
-        ? last.sp / 100 - 1
-        : first.sp > 0
-          ? last.sp / first.sp - 1
-          : null;
+  const portNow = last ? last.portfolio : null;
+  const spNow = last ? last.sp : null;
+  const portWindow =
+    last && first && range !== "ALL" ? last.portfolio - first.portfolio : null;
+  const spWindow =
+    last && first && range !== "ALL" ? last.sp - first.sp : null;
 
   return (
     <figure className="rounded-sm border border-hairline bg-paper p-4 sm:p-5">
       <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <span className="font-display text-lg">Indexed growth</span>
-        <span className="text-xs text-muted">Indexed to 100 at inception</span>
+        <span className="font-display text-lg">Performance</span>
+        <span className="text-xs text-muted">% return since inception</span>
       </figcaption>
 
       <div className="mb-3 flex flex-wrap gap-1">
@@ -146,13 +144,20 @@ export function GrowthChart({
           viewBox={`0 0 ${width} ${height}`}
           className="h-auto w-full min-w-[520px]"
           role="img"
-          aria-label={`Indexed growth of ${portfolioName} versus ${BENCHMARK_LABEL} over ${range}, indexed to 100 at inception`}
+          aria-label={`Cumulative percent return of ${portfolioName} versus ${BENCHMARK_LABEL} over ${range}`}
         >
           {gridVals.map((v) => (
             <g key={v}>
-              <line x1={padL} x2={width - padR} y1={y(v)} y2={y(v)} stroke="#DBDED8" strokeWidth={1} />
+              <line
+                x1={padL}
+                x2={width - padR}
+                y1={y(v)}
+                y2={y(v)}
+                stroke={v === 0 && zeroInRange ? "#B9BEB4" : "#DBDED8"}
+                strokeWidth={v === 0 && zeroInRange ? 1.25 : 1}
+              />
               <text x={padL - 8} y={y(v) + 3} textAnchor="end" className="tnum" fontSize="10" fill="#5A6169">
-                {v.toFixed(0)}
+                {v > 0 ? `+${v}%` : `${v}%`}
               </text>
             </g>
           ))}
@@ -165,10 +170,10 @@ export function GrowthChart({
               <circle cx={x(last.date)} cy={y(last.portfolio)} r={3} fill="#1E3A5F" />
               <circle cx={x(last.date)} cy={y(last.sp)} r={3} fill="#5A6169" />
               <text x={x(last.date) + 6} y={y(last.portfolio) + 3} className="tnum" fontSize="11" fontWeight="600" fill="#1E3A5F">
-                {indexValue(last.portfolio)}
+                {fmtPct(last.portfolio)}
               </text>
               <text x={x(last.date) + 6} y={y(last.sp) + 3} className="tnum" fontSize="11" fill="#5A6169">
-                {indexValue(last.sp)}
+                {fmtPct(last.sp)}
               </text>
             </>
           )}
@@ -185,24 +190,37 @@ export function GrowthChart({
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-5 bg-navy" /> {portfolioName}{" "}
-          <span className="tnum text-ink">{pct(portReturn)}</span>
+          <span className="tnum text-ink">{portNow == null ? "—" : fmtPct(portNow)}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-0.5 w-5"
             style={{ backgroundImage: "repeating-linear-gradient(90deg,#5A6169 0 4px,transparent 4px 7px)" }}
           />
-          {BENCHMARK_LABEL} <span className="tnum text-ink">{pct(spReturn)}</span>
+          {BENCHMARK_LABEL}{" "}
+          <span className="tnum text-ink">{spNow == null ? "—" : fmtPct(spNow)}</span>
         </span>
-        <span>{range === "ALL" ? "since inception" : `over ${rangeLabel(range)}`}</span>
+        {range === "ALL" ? (
+          <span>since inception</span>
+        ) : (
+          <span>
+            {rangeLabel(range)}:{" "}
+            <span className="tnum">
+              {portWindow == null ? "—" : `${portWindow >= 0 ? "+" : "−"}${Math.abs(portWindow).toFixed(1)} pp`}
+            </span>{" "}
+            fund ·{" "}
+            <span className="tnum">
+              {spWindow == null ? "—" : `${spWindow >= 0 ? "+" : "−"}${Math.abs(spWindow).toFixed(1)} pp`}
+            </span>{" "}
+            {BENCHMARK_LABEL}
+          </span>
+        )}
         {truncated ? (
           <span>· only {view.length} point{view.length === 1 ? "" : "s"} recorded so far</span>
         ) : (
           thin && <span>· history builds up daily</span>
         )}
-        {recordedFrom && (
-          <span>· chart recorded from {longDate(recordedFrom)}</span>
-        )}
+        {recordedFrom && <span>· recorded from {longDate(recordedFrom)}</span>}
       </div>
     </figure>
   );
@@ -254,7 +272,6 @@ function cutoffFor(range: Range, now: Date): Date | null {
 interface Windowed {
   view: Pt[];
   thin: boolean;
-  /** The requested range has fewer than 2 points, so we're showing everything. */
   truncated: boolean;
 }
 
@@ -266,7 +283,6 @@ function windowed(full: Pt[], range: Range): Windowed {
 
   const cutoffKey = cutoff.toISOString().slice(0, 10);
   const inWindow = full.filter((p) => p.date >= cutoffKey);
-  // Include the last point just before the window so the line enters from the edge.
   const beforeIdx = full.findLastIndex((p) => p.date < cutoffKey);
   const view = beforeIdx >= 0 ? [full[beforeIdx], ...inWindow] : inWindow;
 
