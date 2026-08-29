@@ -5,7 +5,7 @@ import { useLivePrices } from "./LivePricesProvider";
 import { Sparkline } from "./Sparkline";
 import { WeightBar } from "./WeightBar";
 import { ReturnFigure } from "./ReturnFigure";
-import { longDate, pctValue } from "@/lib/format";
+import { pctValue } from "@/lib/format";
 import type { HoldingRow } from "@/lib/sleeveMetrics";
 
 type SortKey = "weight" | "return" | "ticker";
@@ -80,11 +80,11 @@ export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
               <div className="min-w-0">
                 <div className="tnum text-base font-semibold">{h.ticker}</div>
                 <div className="truncate text-sm text-muted">{h.company}</div>
-                <div className="tnum mt-0.5 text-xs text-muted">
-                  entry {longDate(h.entryDate)}
-                  {h.priceSource === "manual" ? " · manual price" : ""}
-                  {h.priceSource === "none" ? " · no price" : ""}
-                </div>
+                {(h.priceSource === "manual" || h.priceSource === "none") && (
+                  <div className="tnum mt-0.5 text-xs text-muted">
+                    {h.priceSource === "manual" ? "manual price" : "no price"}
+                  </div>
+                )}
               </div>
 
               {/* sparkline */}
