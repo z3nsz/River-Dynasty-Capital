@@ -1,0 +1,32 @@
+name: Refresh prices
+
+# Vercel's Hobby plan only runs crons ~once per day. This workflow is the real
+# scheduler: it pings the deployed /api/cron/refresh endpoint every 5 minutes.
+# GitHub's scheduler is best-effort and often runs a few minutes late — that's
+# fine, the endpoint is idempotent and the public site also self-refreshes.
+#
+# Setup: add two repository secrets (Settings -> Secrets and variables -> Actions)
+#   REFRESH_URL   e.g. https://your-app.vercel.app/api/cron/refresh
+#   CRON_SECRET   the same value you set in Vercel's environment variables
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit refresh endpoint
+        run: |
+          if [ -z "${{ secrets.REFRESH_URL }}" ]; then
+            echo "REFRESH_URL secret not set — skipping."
+            exit 0
+          fi
+          code=$(curl -s -o /tmp/out.json -w "%{http_code}" \
+            -X POST "${{ secrets.REFRESH_URL }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "HTTP $code"
+          cat /tmp/out.json || true
+          test "$code" = "200"

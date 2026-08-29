@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: theme("colors.paper");
+  color: theme("colors.ink");
+  font-family: theme("fontFamily.body");
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* All numeric / ticker text is monospaced with aligned figures. */
+.tnum {
+  font-family: theme("fontFamily.mono");
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Visible keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid theme("colors.navy");
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.hairline {
+  border-color: theme("colors.hairline");
+}
+
+/* Tasteful flash when a live number changes. */
+@keyframes rdc-flash-gain {
+  0% { background-color: rgba(27, 107, 74, 0.16); }
+  100% { background-color: transparent; }
+}
+@keyframes rdc-flash-loss {
+  0% { background-color: rgba(178, 58, 46, 0.16); }
+  100% { background-color: transparent; }
+}
+.flash-gain { animation: rdc-flash-gain 900ms ease-out; }
+.flash-loss { animation: rdc-flash-loss 900ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-gain,
+  .flash-loss {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
