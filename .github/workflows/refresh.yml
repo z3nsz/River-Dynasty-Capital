@@ -1,9 +1,10 @@
 name: Refresh prices
 
-# Vercel's Hobby plan only runs crons ~once per day. This workflow is the real
-# scheduler: it pings the deployed /api/cron/refresh endpoint every 5 minutes.
-# GitHub's scheduler is best-effort and often runs a few minutes late — that's
-# fine, the endpoint is idempotent and the public site also self-refreshes.
+# Pings the deployed /api/cron/refresh endpoint once per weekday, shortly after
+# the US market close, to snapshot the closing prices. The public site also
+# self-refreshes on demand while the market is open (see README "Live pricing"),
+# so this daily ping is just a backstop. GitHub's scheduler is best-effort and
+# often runs a few minutes late — fine, the endpoint is idempotent.
 #
 # Setup: add two repository secrets (Settings -> Secrets and variables -> Actions)
 #   REFRESH_URL   e.g. https://your-app.vercel.app/api/cron/refresh
@@ -11,7 +12,7 @@ name: Refresh prices
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 21 * * 1-5"
   workflow_dispatch:
 
 jobs:

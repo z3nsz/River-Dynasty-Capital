@@ -11,10 +11,10 @@ export const revalidate = 0;
  * `Authorization: Bearer $CRON_SECRET` automatically. External schedulers
  * (GitHub Actions, cron-job.org) should send the same header.
  *
- * NOTE: On Vercel's Hobby plan, crons run at most ~once/day. That's fine — the
- * public /api/prices endpoint also refreshes the cache on demand when it's
- * stale and the market is open (deduped by a DB lock, so still not per-visitor).
- * See README "Live pricing".
+ * Scheduled once per weekday after the US close (see vercel.json). Intraday
+ * freshness comes from /api/prices, which refreshes the cache on demand when
+ * it's stale and the market is open (deduped by a DB lock, so still not
+ * per-visitor). See README "Live pricing".
  */
 async function handle(req: NextRequest) {
   const secret = cronSecret();

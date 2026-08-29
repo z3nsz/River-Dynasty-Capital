@@ -173,23 +173,24 @@ The cache is refilled:
 
 ### Scheduling the refresh
 
-`vercel.json` defines a cron on `/api/cron/refresh`. **Important:** Vercel's
-**Hobby (free) plan only runs crons about once per day.** So for frequent
-updates on the free plan, use the included **GitHub Action**:
+The scheduled refresh runs **once per weekday**, at 21:00 UTC — shortly after the
+US market close — to capture the closing prices. This works on Vercel's free
+Hobby plan (whose crons run about once a day anyway).
 
-1. In your GitHub repo: **Settings → Secrets and variables → Actions → New
-   repository secret**. Add:
-   - `REFRESH_URL` = `https://YOUR-APP.vercel.app/api/cron/refresh`
-   - `CRON_SECRET` = the same value you put in Vercel's env vars
-2. The workflow in [`.github/workflows/refresh.yml`](.github/workflows/refresh.yml)
-   then pings that endpoint every ~5 minutes (GitHub's scheduler is best-effort
-   and often a few minutes late — harmless, the endpoint is idempotent).
+`vercel.json` defines this cron on `/api/cron/refresh`. There is also an optional
+**GitHub Action** ([`.github/workflows/refresh.yml`](.github/workflows/refresh.yml))
+that does the same daily ping — useful as a backstop, or if you prefer to run the
+schedule from GitHub. To enable it, add two repository secrets (**Settings →
+Secrets and variables → Actions**):
 
-On Vercel **Pro**, the `vercel.json` cron runs every 5 minutes during US market
-hours on its own and you can ignore the GitHub Action.
+- `REFRESH_URL` = `https://YOUR-APP.vercel.app/api/cron/refresh`
+- `CRON_SECRET` = the same value you put in Vercel's env vars
 
-Even with **no** scheduler at all, the on-demand refresh (#1) keeps a
-reasonably-visited site fresh during market hours.
+Intraday freshness comes from the **on-demand refresh** (#1 above): while the
+market is open, a page view older than `PRICE_CACHE_TTL_SECONDS` triggers one
+server-side refresh (lock-deduped, never per-visitor). If you want a tighter
+scheduled cadence during market hours and you're on Vercel **Pro**, change the
+`vercel.json` schedule to e.g. `*/5 13-21 * * 1-5`.
 
 ### While a page is open
 
