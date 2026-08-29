@@ -41,10 +41,11 @@ cross join (values
 where s.slug = 'seine';
 
 -- --------------------------------------------------------------------------
--- No historical snapshots are seeded. The growth chart re-bases to 100 at the
--- first recorded point, and the daily cron records one point per trading day
--- from your first deploy onward — so the chart tracks performance from the day
--- you start running the site, not a back-dated straight line.
+-- No historical snapshots are seeded. Values are indexed to 100 at inception
+-- (so the first recorded point sits at wherever total return already is), and
+-- the daily cron records one point per US trading day from your first deploy
+-- onward. The chart's recorded history therefore begins the day you start
+-- running the site, without a back-dated straight line.
 -- --------------------------------------------------------------------------
 
 -- --------------------------------------------------------------------------

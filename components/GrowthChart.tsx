@@ -16,10 +16,11 @@ interface Pt {
 }
 
 /**
- * Indexed growth chart with a timeframe selector. The stored series is indexed
- * to 100 at inception; when a shorter timeframe is picked we re-base it to 100
- * at the start of that window so the period's move is what you read off the axis.
- * Never renders "$" — it's an index.
+ * Indexed growth chart. Values are absolute — indexed to 100 at the fund's
+ * inception, so "237" means +137% since inception. The chart is NOT re-based:
+ * the timeframe buttons only zoom the x-axis (and rescale the y-axis to fit the
+ * visible data). Recorded history begins at the first snapshot on file; a live
+ * "now" point is always drawn on the end. Never renders "$".
  */
 export function GrowthChart({
   snapshots,
@@ -50,60 +51,76 @@ export function GrowthChart({
     return s;
   }, [snapshots, live, today]);
 
-  const { view, base, thin, truncated, windowStart } = useMemo(
-    () => windowed(full, range),
-    [full, range],
-  );
+  const recordedFrom = full.length ? full[0].date : null;
+
+  const { view, thin, truncated } = useMemo(() => windowed(full, range), [full, range]);
 
   const width = 720;
   const height = 260;
-  const padL = 44;
+  const padL = 48;
   const padR = 60;
   const padT = 16;
   const padB = 28;
 
-  // Re-based values (100 at the window start).
-  const reb = view.map((p) => ({
-    ...p,
-    rp: base.portfolio > 0 ? (p.portfolio / base.portfolio) * 100 : 100,
-    rs: base.sp > 0 ? (p.sp / base.sp) * 100 : 100,
-  }));
+  const allVals = view.flatMap((p) => [p.portfolio, p.sp]);
+  const rawMin = allVals.length ? Math.min(...allVals) : 100;
+  const rawMax = allVals.length ? Math.max(...allVals) : 100;
+  let vlo: number;
+  let vhi: number;
+  if (rawMax - rawMin < 0.5) {
+    const c = (rawMax + rawMin) / 2;
+    const pad = Math.max(2, c * 0.02);
+    vlo = c - pad;
+    vhi = c + pad;
+  } else {
+    const span = rawMax - rawMin;
+    vlo = rawMin - span * 0.12;
+    vhi = rawMax + span * 0.12;
+  }
 
-  const allVals = reb.flatMap((p) => [p.rp, p.rs]).concat([100]);
-  const minV = Math.min(...allVals);
-  const maxV = Math.max(...allVals);
-  const vSpan = maxV - minV || 1;
-  const vlo = minV - vSpan * 0.08;
-  const vhi = maxV + vSpan * 0.08;
-
-  const t0 = new Date(reb[0]?.date ?? today).getTime();
-  const t1 = new Date(reb[reb.length - 1]?.date ?? today).getTime();
+  const t0 = new Date(view[0]?.date ?? today).getTime();
+  const t1 = new Date(view[view.length - 1]?.date ?? today).getTime();
   const tSpan = t1 - t0 || 1;
 
   const x = (d: string) =>
-    padL + ((new Date(d).getTime() - t0) / tSpan) * (width - padL - padR);
+    view.length <= 1
+      ? (padL + width - padR) / 2
+      : padL + ((new Date(d).getTime() - t0) / tSpan) * (width - padL - padR);
   const y = (v: number) =>
     padT + (1 - (v - vlo) / (vhi - vlo)) * (height - padT - padB);
 
-  const path = (key: "rp" | "rs") =>
-    reb
+  const line = (key: "portfolio" | "sp") =>
+    view
       .map((p, i) => `${i === 0 ? "M" : "L"} ${x(p.date).toFixed(1)} ${y(p[key]).toFixed(1)}`)
       .join(" ");
 
-  const last = reb[reb.length - 1];
+  const last = view[view.length - 1];
+  const first = view[0];
   const gridVals = niceTicks(vlo, vhi, 4);
 
-  const periodPort = last ? last.rp / 100 - 1 : null;
-  const periodSp = last ? last.rs / 100 - 1 : null;
+  // Legend readout: since inception for "All", else the move over the window.
+  const portReturn =
+    !last
+      ? null
+      : range === "ALL"
+        ? last.portfolio / 100 - 1
+        : first.portfolio > 0
+          ? last.portfolio / first.portfolio - 1
+          : null;
+  const spReturn =
+    !last
+      ? null
+      : range === "ALL"
+        ? last.sp / 100 - 1
+        : first.sp > 0
+          ? last.sp / first.sp - 1
+          : null;
 
   return (
     <figure className="rounded-sm border border-hairline bg-paper p-4 sm:p-5">
       <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <span className="font-display text-lg">Indexed growth</span>
-        <span className="text-xs text-muted">
-          Indexed to 100 at{" "}
-          {windowStart ? longDate(windowStart) : "the start"}
-        </span>
+        <span className="text-xs text-muted">Indexed to 100 at inception</span>
       </figcaption>
 
       <div className="mb-3 flex flex-wrap gap-1">
@@ -129,7 +146,7 @@ export function GrowthChart({
           viewBox={`0 0 ${width} ${height}`}
           className="h-auto w-full min-w-[520px]"
           role="img"
-          aria-label={`Indexed growth of ${portfolioName} versus ${BENCHMARK_LABEL} over ${range}, both starting at 100`}
+          aria-label={`Indexed growth of ${portfolioName} versus ${BENCHMARK_LABEL} over ${range}, indexed to 100 at inception`}
         >
           {gridVals.map((v) => (
             <g key={v}>
@@ -140,24 +157,24 @@ export function GrowthChart({
             </g>
           ))}
 
-          <path d={path("rs")} fill="none" stroke="#5A6169" strokeWidth={1.5} strokeDasharray="4 3" />
-          <path d={path("rp")} fill="none" stroke="#1E3A5F" strokeWidth={2} />
+          <path d={line("sp")} fill="none" stroke="#5A6169" strokeWidth={1.5} strokeDasharray="4 3" />
+          <path d={line("portfolio")} fill="none" stroke="#1E3A5F" strokeWidth={2} />
 
           {last && (
             <>
-              <circle cx={x(last.date)} cy={y(last.rp)} r={3} fill="#1E3A5F" />
-              <circle cx={x(last.date)} cy={y(last.rs)} r={3} fill="#5A6169" />
-              <text x={x(last.date) + 6} y={y(last.rp) + 3} className="tnum" fontSize="11" fontWeight="600" fill="#1E3A5F">
-                {indexValue(last.rp)}
+              <circle cx={x(last.date)} cy={y(last.portfolio)} r={3} fill="#1E3A5F" />
+              <circle cx={x(last.date)} cy={y(last.sp)} r={3} fill="#5A6169" />
+              <text x={x(last.date) + 6} y={y(last.portfolio) + 3} className="tnum" fontSize="11" fontWeight="600" fill="#1E3A5F">
+                {indexValue(last.portfolio)}
               </text>
-              <text x={x(last.date) + 6} y={y(last.rs) + 3} className="tnum" fontSize="11" fill="#5A6169">
-                {indexValue(last.rs)}
+              <text x={x(last.date) + 6} y={y(last.sp) + 3} className="tnum" fontSize="11" fill="#5A6169">
+                {indexValue(last.sp)}
               </text>
             </>
           )}
 
           <text x={padL} y={height - 8} fontSize="10" fill="#5A6169">
-            {reb[0] ? monthYear(reb[0].date) : ""}
+            {view.length > 1 && first ? monthYear(first.date) : ""}
           </text>
           <text x={width - padR} y={height - 8} textAnchor="end" fontSize="10" fill="#5A6169">
             {last?.live ? "now" : last ? monthYear(last.date) : ""}
@@ -168,30 +185,23 @@ export function GrowthChart({
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-5 bg-navy" /> {portfolioName}{" "}
-          <span className="tnum text-ink">{pct(periodPort)}</span>
+          <span className="tnum text-ink">{pct(portReturn)}</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-0.5 w-5"
             style={{ backgroundImage: "repeating-linear-gradient(90deg,#5A6169 0 4px,transparent 4px 7px)" }}
           />
-          {BENCHMARK_LABEL} <span className="tnum text-ink">{pct(periodSp)}</span>
+          {BENCHMARK_LABEL} <span className="tnum text-ink">{pct(spReturn)}</span>
         </span>
-        <span>
-          {range === "ALL" || truncated
-            ? windowStart
-              ? `since ${longDate(windowStart)}`
-              : "since the start"
-            : `over ${rangeLabel(range)}`}
-        </span>
+        <span>{range === "ALL" ? "since inception" : `over ${rangeLabel(range)}`}</span>
         {truncated ? (
-          <span className="text-muted">
-            · {rangeLabel(range)} of history not recorded yet — showing everything so far
-          </span>
+          <span>· only {view.length} point{view.length === 1 ? "" : "s"} recorded so far</span>
         ) : (
-          thin && (
-            <span className="text-muted">· only a few points recorded so far</span>
-          )
+          thin && <span>· history builds up daily</span>
+        )}
+        {recordedFrom && (
+          <span>· chart recorded from {longDate(recordedFrom)}</span>
         )}
       </div>
     </figure>
@@ -243,66 +253,25 @@ function cutoffFor(range: Range, now: Date): Date | null {
 
 interface Windowed {
   view: Pt[];
-  /** Divisor for re-basing: the series value as of the window start. */
-  base: { portfolio: number; sp: number };
   thin: boolean;
-  /** The requested range had too little history, so we're showing everything. */
+  /** The requested range has fewer than 2 points, so we're showing everything. */
   truncated: boolean;
-  /** Label for where "100" sits. */
-  windowStart: string | null;
 }
 
 function windowed(full: Pt[], range: Range): Windowed {
-  if (full.length === 0) {
-    return {
-      view: [],
-      base: { portfolio: 100, sp: 100 },
-      thin: true,
-      truncated: false,
-      windowStart: null,
-    };
-  }
+  if (full.length === 0) return { view: [], thin: true, truncated: false };
 
-  const allBase = { portfolio: full[0].portfolio, sp: full[0].sp };
   const cutoff = cutoffFor(range, new Date());
-  if (!cutoff) {
-    return {
-      view: full,
-      base: allBase,
-      thin: full.length < 3,
-      truncated: false,
-      windowStart: full[0].date,
-    };
-  }
+  if (!cutoff) return { view: full, thin: full.length < 3, truncated: false };
 
   const cutoffKey = cutoff.toISOString().slice(0, 10);
-  const view = full.filter((p) => p.date >= cutoffKey);
-
-  // Baseline = the last known value at or before the window start, so the
-  // re-based line reflects the move over exactly this period.
+  const inWindow = full.filter((p) => p.date >= cutoffKey);
+  // Include the last point just before the window so the line enters from the edge.
   const beforeIdx = full.findLastIndex((p) => p.date < cutoffKey);
-  const base =
-    beforeIdx >= 0
-      ? { portfolio: full[beforeIdx].portfolio, sp: full[beforeIdx].sp }
-      : allBase;
+  const view = beforeIdx >= 0 ? [full[beforeIdx], ...inWindow] : inWindow;
 
-  if (view.length < 2) {
-    return {
-      view: full,
-      base: allBase,
-      thin: true,
-      truncated: true,
-      windowStart: full[0].date,
-    };
-  }
-
-  return {
-    view,
-    base,
-    thin: view.length < 3,
-    truncated: false,
-    windowStart: beforeIdx >= 0 ? cutoffKey : full[0].date,
-  };
+  if (view.length < 2) return { view: full, thin: true, truncated: true };
+  return { view, thin: view.length < 3, truncated: false };
 }
 
 function niceTicks(lo: number, hi: number, count: number): number[] {
