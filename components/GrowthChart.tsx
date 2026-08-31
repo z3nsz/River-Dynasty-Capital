@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { pct, longDate, monthYear } from "@/lib/format";
 import { BENCHMARK_LABEL } from "@/lib/config";
 import type { Snapshot } from "@/lib/types";
@@ -37,6 +37,8 @@ export function GrowthChart({
   portfolioName: string;
 }) {
   const [range, setRange] = useState<Range>("ALL");
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const today = new Date().toISOString().slice(0, 10);
 
   const full: Pt[] = useMemo(() => {
@@ -107,6 +109,41 @@ export function GrowthChart({
   const gridVals = niceTicks(vlo, vhi, 4);
   const zeroInRange = vlo < 0 && vhi > 0;
 
+  const hover =
+    hoverIdx != null && hoverIdx >= 0 && hoverIdx < view.length ? view[hoverIdx] : null;
+
+  function handleMove(e: React.PointerEvent<SVGSVGElement>) {
+    const svg = svgRef.current;
+    if (!svg || view.length === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const vbX = ((e.clientX - rect.left) / rect.width) * width;
+    const clamped = Math.max(padL, Math.min(width - padR, vbX));
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < view.length; i++) {
+      const d = Math.abs(x(view[i].date) - clamped);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    setHoverIdx(best);
+  }
+
+  // Tooltip geometry (SVG units).
+  const tipLines = hover
+    ? [
+        longDate(hover.date),
+        `${portfolioName}  ${fmtPct(hover.portfolio)}`,
+        `${BENCHMARK_LABEL}  ${fmtPct(hover.sp)}`,
+      ]
+    : [];
+  const tipW = Math.max(90, ...tipLines.map((s) => s.length * 5.6)) + 14;
+  const tipH = 14 + tipLines.length * 13;
+  const hoverX = hover ? x(hover.date) : 0;
+  const tipX =
+    hoverX + 12 + tipW > width - padR ? hoverX - 12 - tipW : hoverX + 12;
+
   const portNow = last ? last.portfolio : null;
   const spNow = last ? last.sp : null;
   const portWindow =
@@ -126,7 +163,10 @@ export function GrowthChart({
           <button
             key={r}
             type="button"
-            onClick={() => setRange(r)}
+            onClick={() => {
+              setRange(r);
+              setHoverIdx(null);
+            }}
             aria-pressed={range === r}
             className={`tnum rounded-sm px-2 py-0.5 text-xs ${
               range === r
@@ -141,10 +181,16 @@ export function GrowthChart({
 
       <div className="w-full overflow-x-auto">
         <svg
+          ref={svgRef}
           viewBox={`0 0 ${width} ${height}`}
-          className="h-auto w-full min-w-[520px]"
+          className="h-auto w-full min-w-[520px] cursor-crosshair"
           role="img"
-          aria-label={`Cumulative percent return of ${portfolioName} versus ${BENCHMARK_LABEL} over ${range}`}
+          aria-label={`Cumulative percent return of ${portfolioName} versus ${BENCHMARK_LABEL} over ${range}. ${portfolioName} ${
+            portNow == null ? "—" : fmtPct(portNow)
+          }, ${BENCHMARK_LABEL} ${spNow == null ? "—" : fmtPct(spNow)}.`}
+          onPointerMove={handleMove}
+          onPointerDown={handleMove}
+          onPointerLeave={() => setHoverIdx(null)}
         >
           {gridVals.map((v) => (
             <g key={v}>
@@ -184,6 +230,44 @@ export function GrowthChart({
           <text x={width - padR} y={height - 8} textAnchor="end" fontSize="10" fill="#5A6169">
             {last?.live ? "now" : last ? monthYear(last.date) : ""}
           </text>
+
+          {hover && (
+            <g pointerEvents="none">
+              <line
+                x1={hoverX}
+                x2={hoverX}
+                y1={padT}
+                y2={height - padB}
+                stroke="#9AA1A8"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+              />
+              <circle cx={hoverX} cy={y(hover.sp)} r={3.5} fill="#5A6169" stroke="#F5F6F4" strokeWidth={1.5} />
+              <circle cx={hoverX} cy={y(hover.portfolio)} r={4} fill="#1E3A5F" stroke="#F5F6F4" strokeWidth={1.5} />
+              <g transform={`translate(${tipX} ${padT})`}>
+                <rect
+                  width={tipW}
+                  height={tipH}
+                  rx={4}
+                  fill="#14181C"
+                  opacity={0.96}
+                />
+                {tipLines.map((s, i) => (
+                  <text
+                    key={i}
+                    x={7}
+                    y={13 + i * 13}
+                    className="tnum"
+                    fontSize={i === 0 ? 9.5 : 10.5}
+                    fontWeight={i === 1 ? 600 : 400}
+                    fill={i === 0 ? "#9AA1A8" : i === 1 ? "#EDEFF2" : "#B9BEB4"}
+                  >
+                    {s}
+                  </text>
+                ))}
+              </g>
+            </g>
+          )}
         </svg>
       </div>
 
