@@ -73,19 +73,23 @@ export function GrowthChart({
   const padT = 16;
   const padB = 28;
 
+  // Y axis auto-fits the visible data (it does NOT force 0 into range) so the
+  // gap between the two lines is easy to read. The zero line still draws when
+  // 0 happens to fall inside the fitted range.
   const vals = view.flatMap((p) => [p.portfolio, p.sp]);
-  const rawMin = vals.length ? Math.min(...vals, 0) : -1;
-  const rawMax = vals.length ? Math.max(...vals, 0) : 1;
+  const rawMin = vals.length ? Math.min(...vals) : -1;
+  const rawMax = vals.length ? Math.max(...vals) : 1;
+  const rawSpan = rawMax - rawMin;
   let vlo: number;
   let vhi: number;
-  if (rawMax - rawMin < 1) {
+  if (rawSpan < 1) {
     const c = (rawMax + rawMin) / 2;
-    vlo = c - 2;
-    vhi = c + 2;
+    vlo = c - 1.5;
+    vhi = c + 1.5;
   } else {
-    const span = rawMax - rawMin;
-    vlo = rawMin - span * 0.12;
-    vhi = rawMax + span * 0.12;
+    const pad = Math.max(rawSpan * 0.1, 0.5);
+    vlo = rawMin - pad;
+    vhi = rawMax + pad;
   }
 
   const t0 = new Date(view[0]?.date ?? today).getTime();
@@ -376,13 +380,20 @@ function windowed(full: Pt[], range: Range): Windowed {
 
 function niceTicks(lo: number, hi: number, count: number): number[] {
   const span = hi - lo;
-  if (span <= 0) return [Math.round(lo)];
+  if (span <= 0) return [round2(lo)];
   const raw = span / count;
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));
   const norm = raw / mag;
   const step = (norm >= 5 ? 5 : norm >= 2 ? 2 : 1) * mag;
   const start = Math.ceil(lo / step) * step;
   const out: number[] = [];
-  for (let v = start; v <= hi; v += step) out.push(Math.round(v));
+  for (let v = start; v <= hi + 1e-9; v += step) {
+    const r = round2(v);
+    if (out[out.length - 1] !== r) out.push(r);
+  }
   return out;
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
 }
