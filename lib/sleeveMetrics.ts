@@ -57,6 +57,8 @@ export interface HoldingRow extends HoldingInput {
   recent: RecentPoint[];
   priceAsOf: string | null;
   ret: number | null;
+  /** Change since the previous close, in percent (e.g. 1.2 for +1.2%). */
+  dayChangePct: number | null;
 }
 
 export interface ClosedRow extends ClosedInput {
@@ -76,6 +78,10 @@ export interface SleeveMetrics {
   spIndex: number | null;
   spCurrent: number | null;
   ageYears: number;
+  /** Weight-weighted fund move since the previous close, in percent. */
+  dayChangePct: number | null;
+  /** Benchmark move since the previous close, in percent. */
+  benchmarkDayChangePct: number | null;
   /** true when at least one open holding has no usable price. */
   hasPriceGaps: boolean;
 }
@@ -108,6 +114,10 @@ export function computeSleeveMetrics(
       recent: q?.recent ?? [],
       priceAsOf: q?.asOf ?? null,
       ret: holdingReturn(h.entryPrice, currentPrice),
+      dayChangePct:
+        priceSource === "live" && q && Number.isFinite(q.changePct)
+          ? q.changePct
+          : null,
     };
   });
 
@@ -126,6 +136,20 @@ export function computeSleeveMetrics(
   const spQuote = quotes[BENCHMARK_SYMBOL];
   const spCurrent = spQuote && Number.isFinite(spQuote.price) ? spQuote.price : null;
   const benchRet = benchmarkReturn(meta.spInceptionPrice, spCurrent);
+  const benchmarkDayChangePct =
+    spQuote && Number.isFinite(spQuote.changePct) ? spQuote.changePct : null;
+
+  // Fund's move today: weight-weighted average of holding day changes, over the
+  // holdings that have a live quote.
+  const dayItems = rows.filter(
+    (r) => r.dayChangePct != null && r.weightPct > 0,
+  );
+  const dayWeight = dayItems.reduce((s, r) => s + r.weightPct, 0);
+  const dayChangePct =
+    dayWeight > 0
+      ? dayItems.reduce((s, r) => s + r.weightPct * (r.dayChangePct as number), 0) /
+        dayWeight
+      : null;
 
   return {
     meta,
@@ -140,6 +164,8 @@ export function computeSleeveMetrics(
     spIndex: toIndex(benchRet),
     spCurrent,
     ageYears,
+    dayChangePct,
+    benchmarkDayChangePct,
     hasPriceGaps: rows.some((r) => r.priceSource === "none"),
   };
 }

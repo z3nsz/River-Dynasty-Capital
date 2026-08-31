@@ -5,10 +5,10 @@ import { useLivePrices } from "./LivePricesProvider";
 import { Sparkline } from "./Sparkline";
 import { WeightBar } from "./WeightBar";
 import { ReturnFigure } from "./ReturnFigure";
-import { pctValue } from "@/lib/format";
+import { pct, pctValue, signClass } from "@/lib/format";
 import type { HoldingRow } from "@/lib/sleeveMetrics";
 
-type SortKey = "weight" | "return" | "ticker";
+type SortKey = "weight" | "return" | "today" | "ticker";
 
 export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
   const { changed } = useLivePrices();
@@ -26,6 +26,8 @@ export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
       let cmp = 0;
       if (sortKey === "ticker") cmp = a.ticker.localeCompare(b.ticker);
       else if (sortKey === "weight") cmp = a.weightPct - b.weightPct;
+      else if (sortKey === "today")
+        cmp = (a.dayChangePct ?? -Infinity) - (b.dayChangePct ?? -Infinity);
       else cmp = (a.ret ?? -Infinity) - (b.ret ?? -Infinity);
       return cmp * dir;
     });
@@ -48,7 +50,7 @@ export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
         </h2>
         <div className="flex items-center gap-1 text-xs text-muted">
           <span className="mr-1">sort</span>
-          {(["weight", "return", "ticker"] as SortKey[]).map((k) => (
+          {(["weight", "return", "today", "ticker"] as SortKey[]).map((k) => (
             <button
               key={k}
               type="button"
@@ -92,9 +94,18 @@ export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
                 <Sparkline points={h.recent} positive={positive} />
               </div>
 
-              {/* return */}
+              {/* return + today's move */}
               <div className="order-2 text-right sm:order-none sm:text-left">
                 <ReturnFigure ratio={h.ret} flash={flash} />
+                {h.dayChangePct != null && (
+                  <div
+                    className={`tnum text-xs ${signClass(h.dayChangePct, {
+                      neutral: "text-muted",
+                    })}`}
+                  >
+                    {pct(h.dayChangePct / 100, 2)} today
+                  </div>
+                )}
               </div>
 
               {/* weight */}

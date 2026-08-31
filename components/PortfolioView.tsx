@@ -9,7 +9,8 @@ import { RealizedTable } from "./RealizedTable";
 import { Footer } from "./Footer";
 import { Logo } from "./Logo";
 import { useSleeveMetrics } from "@/hooks/useSleeveMetrics";
-import { longDate } from "@/lib/format";
+import { longDate, pct, signClass } from "@/lib/format";
+import { BENCHMARK_LABEL } from "@/lib/config";
 import type { SelectedSleeve } from "@/lib/data";
 import type { MarketStatus, PricesResponse, QuoteMap } from "@/lib/types";
 
@@ -61,11 +62,28 @@ function SleeveBody({ fund }: { fund: SelectedSleeve }) {
   return (
     <main className="py-8">
       <div className="mb-8">
-        <div className="mb-3 flex flex-wrap items-baseline gap-2">
+        <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h2 className="font-display text-2xl">{m.meta.displayName}</h2>
           <span className="tnum text-xs text-muted">
             since {longDate(m.meta.inceptionDate)}
           </span>
+          {m.dayChangePct != null && (
+            <span className="tnum text-sm">
+              <span className={signClass(m.dayChangePct, { neutral: "text-muted" })}>
+                {pct(m.dayChangePct / 100, 2)}
+              </span>{" "}
+              <span className="text-muted">today</span>
+              {m.benchmarkDayChangePct != null && (
+                <span className="text-muted">
+                  {" "}
+                  · {BENCHMARK_LABEL}{" "}
+                  <span className={signClass(m.benchmarkDayChangePct, { neutral: "text-muted" })}>
+                    {pct(m.benchmarkDayChangePct / 100, 2)}
+                  </span>
+                </span>
+              )}
+            </span>
+          )}
         </div>
         <HeadlineStats m={m} />
       </div>
