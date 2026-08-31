@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Logo } from "@/components/Logo";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ function LoginForm() {
 
   return (
     <div className="mx-auto max-w-sm px-6 py-24">
+      <Logo size={44} className="mb-4 rounded-xl" />
       <h1 className="font-display text-2xl font-semibold">
         River Dynasty Capital
       </h1>

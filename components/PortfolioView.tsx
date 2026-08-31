@@ -7,6 +7,7 @@ import { GrowthChart } from "./GrowthChart";
 import { HoldingsTable } from "./HoldingsTable";
 import { RealizedTable } from "./RealizedTable";
 import { Footer } from "./Footer";
+import { Logo } from "./Logo";
 import { useSleeveMetrics } from "@/hooks/useSleeveMetrics";
 import { longDate } from "@/lib/format";
 import type { SelectedSleeve } from "@/lib/data";
@@ -38,10 +39,13 @@ function Inner({ tagline, fund }: PortfolioViewProps) {
   return (
     <div className="mx-auto w-full max-w-sheet px-4 sm:px-8">
       <header className="border-b border-ink pb-5 pt-10">
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          River Dynasty Capital
-        </h1>
-        <p className="mt-1 max-w-prose text-sm text-muted">{tagline}</p>
+        <div className="flex items-center gap-3">
+          <Logo size={40} className="shrink-0 rounded-[11px]" />
+          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            River Dynasty Capital
+          </h1>
+        </div>
+        <p className="mt-2 max-w-prose text-sm text-muted">{tagline}</p>
         <div className="mt-4">
           <MarketBadge />
         </div>
