@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { pct, longDate, monthYear } from "@/lib/format";
+import { pct, longDate, monthYear, signClass } from "@/lib/format";
 import { BENCHMARK_LABEL } from "@/lib/config";
 import type { Snapshot } from "@/lib/types";
 
@@ -292,12 +292,12 @@ export function GrowthChart({
           <span>since inception</span>
         ) : (
           <span>
-            {rangeLabel(range)}:{" "}
-            <span className="tnum">
+            return over {rangeLabel(range)}:{" "}
+            <span className={`tnum font-medium ${signClass(portWindow)}`}>
               {portWindow == null ? "—" : `${portWindow >= 0 ? "+" : "−"}${Math.abs(portWindow).toFixed(1)} pp`}
             </span>{" "}
             fund ·{" "}
-            <span className="tnum">
+            <span className={`tnum font-medium ${signClass(spWindow)}`}>
               {spWindow == null ? "—" : `${spWindow >= 0 ? "+" : "−"}${Math.abs(spWindow).toFixed(1)} pp`}
             </span>{" "}
             {BENCHMARK_LABEL}
@@ -365,6 +365,16 @@ interface Windowed {
 
 function windowed(full: Pt[], range: Range): Windowed {
   if (full.length === 0) return { view: [], thin: true, truncated: false };
+
+  if (range === "5D") {
+    // "Last 5 trading days" means exactly that — the last 5 recorded sessions
+    // (6 points: the day-0 baseline plus 5 daily moves) — not a calendar
+    // cutoff, which would over- or under-count around weekends/holidays.
+    const n = Math.min(6, full.length);
+    const view = full.slice(-n);
+    if (view.length < 2) return { view: full, thin: true, truncated: true };
+    return { view, thin: view.length < 3, truncated: full.length < 6 };
+  }
 
   const cutoff = cutoffFor(range, new Date());
   if (!cutoff) return { view: full, thin: full.length < 3, truncated: false };
