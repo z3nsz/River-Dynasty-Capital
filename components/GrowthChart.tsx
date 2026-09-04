@@ -278,7 +278,9 @@ export function GrowthChart({
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-5 bg-navy" /> {portfolioName}{" "}
-          <span className="tnum text-ink">{portNow == null ? "—" : fmtPct(portNow)}</span>
+          <span className={`tnum font-medium ${signClass(portNow, { neutral: "text-ink" })}`}>
+            {portNow == null ? "—" : fmtPct(portNow)}
+          </span>
         </span>
         <span className="flex items-center gap-1.5">
           <span
@@ -286,7 +288,9 @@ export function GrowthChart({
             style={{ backgroundImage: "repeating-linear-gradient(90deg,#5A6169 0 4px,transparent 4px 7px)" }}
           />
           {BENCHMARK_LABEL}{" "}
-          <span className="tnum text-ink">{spNow == null ? "—" : fmtPct(spNow)}</span>
+          <span className={`tnum font-medium ${signClass(spNow, { neutral: "text-ink" })}`}>
+            {spNow == null ? "—" : fmtPct(spNow)}
+          </span>
         </span>
         {range === "ALL" ? (
           <span>since inception</span>
