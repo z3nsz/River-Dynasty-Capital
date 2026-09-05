@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { pct, longDate, monthYear, signClass } from "@/lib/format";
+import { pct, longDate, signClass } from "@/lib/format";
 import { BENCHMARK_LABEL } from "@/lib/config";
 import type { Snapshot } from "@/lib/types";
 
@@ -96,12 +96,15 @@ export function GrowthChart({
   const t1 = new Date(view[view.length - 1]?.date ?? today).getTime();
   const tSpan = t1 - t0 || 1;
 
-  const x = (d: string) =>
+  const xMs = (ms: number) =>
     view.length <= 1
       ? (padL + width - padR) / 2
-      : padL + ((new Date(d).getTime() - t0) / tSpan) * (width - padL - padR);
+      : padL + ((ms - t0) / tSpan) * (width - padL - padR);
+  const x = (d: string) => xMs(new Date(d).getTime());
   const y = (v: number) =>
     padT + (1 - (v - vlo) / (vhi - vlo)) * (height - padT - padB);
+
+  const xTicks = useMemo(() => timeTicks(t0, t1), [t0, t1]);
 
   const line = (key: "portfolio" | "sp") =>
     view
@@ -196,6 +199,19 @@ export function GrowthChart({
           onPointerDown={handleMove}
           onPointerLeave={() => setHoverIdx(null)}
         >
+          {/* vertical date gridlines (behind the data) */}
+          {xTicks.map((tk, i) => (
+            <line
+              key={`vg-${i}`}
+              x1={xMs(tk.ms)}
+              x2={xMs(tk.ms)}
+              y1={padT}
+              y2={height - padB}
+              stroke="#E4E7E1"
+              strokeWidth={1}
+            />
+          ))}
+
           {gridVals.map((v) => (
             <g key={v}>
               <line
@@ -228,12 +244,35 @@ export function GrowthChart({
             </>
           )}
 
-          <text x={padL} y={height - 8} fontSize="10" fill="#5A6169">
-            {view.length > 1 && first ? monthYear(first.date) : ""}
-          </text>
-          <text x={width - padR} y={height - 8} textAnchor="end" fontSize="10" fill="#5A6169">
-            {last?.live ? "now" : last ? monthYear(last.date) : ""}
-          </text>
+          {/* x-axis date markers — evenly spaced, auto-scaled to the window */}
+          {xTicks.map((tk, i) => {
+            const tx = xMs(tk.ms);
+            const anchor =
+              tx < padL + 14 ? "start" : tx > width - padR - 14 ? "end" : "middle";
+            const lx = anchor === "start" ? padL : anchor === "end" ? width - padR : tx;
+            return (
+              <g key={`xt-${i}`}>
+                <line
+                  x1={tx}
+                  x2={tx}
+                  y1={height - padB}
+                  y2={height - padB + 4}
+                  stroke="#B9BEB4"
+                  strokeWidth={1}
+                />
+                <text
+                  x={lx}
+                  y={height - 8}
+                  textAnchor={anchor}
+                  fontSize="10"
+                  fill="#5A6169"
+                  className="tnum"
+                >
+                  {tk.label}
+                </text>
+              </g>
+            );
+          })}
 
           {hover && (
             <g pointerEvents="none">
@@ -410,4 +449,111 @@ function niceTicks(lo: number, hi: number, count: number): number[] {
 
 function round2(v: number): number {
   return Math.round(v * 100) / 100;
+}
+
+const MON = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+const DAY_MS = 86_400_000;
+
+interface XTick {
+  ms: number;
+  label: string;
+}
+
+/**
+ * Evenly spaced date markers for the x-axis, sized to the visible span so the
+ * axis reads correctly as new dates land (e.g. an Aug→Sep window shows both
+ * months, not just "Aug").
+ */
+function timeTicks(t0: number, t1: number): XTick[] {
+  const span = t1 - t0;
+  if (span <= 0) {
+    const d = new Date(t0);
+    return [{ ms: t0, label: `${MON[d.getUTCMonth()]} ${d.getUTCDate()}` }];
+  }
+  const spanDays = span / DAY_MS;
+
+  // -- day scale: markers on the 1st plus every Nth day of each month --
+  if (spanDays <= 55) {
+    const step = spanDays <= 8 ? 1 : spanDays <= 15 ? 2 : spanDays <= 28 ? 3 : 5;
+    const out: XTick[] = [];
+    let y = new Date(t0).getUTCFullYear();
+    let m = new Date(t0).getUTCMonth();
+    while (Date.UTC(y, m, 1) <= t1) {
+      const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+      const days = new Set<number>([1]);
+      for (let d = step; d <= dim; d += step) days.add(d);
+      for (const d of [...days].sort((a, b) => a - b)) {
+        const ms = Date.UTC(y, m, d);
+        if (ms >= t0 && ms <= t1) out.push({ ms, label: `${MON[m]} ${d}` });
+      }
+      m++;
+      if (m > 11) {
+        m = 0;
+        y++;
+      }
+    }
+    return thin(out.length ? out : fallbackEdges(t0, t1), 8);
+  }
+
+  // -- month scale --
+  if (spanDays <= 430) {
+    return thin(monthTicks(t0, t1, spanDays <= 130 ? 1 : spanDays <= 270 ? 2 : 3), 9);
+  }
+
+  // -- quarter / year scale --
+  return thin(monthTicks(t0, t1, spanDays <= 1300 ? 3 : spanDays <= 2600 ? 6 : 12), 9);
+}
+
+function monthTicks(t0: number, t1: number, stepMonths: number): XTick[] {
+  const out: XTick[] = [];
+  let y = new Date(t0).getUTCFullYear();
+  let m = new Date(t0).getUTCMonth();
+  if (Date.UTC(y, m, 1) < t0) {
+    m++;
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+  }
+  let count = 0;
+  while (Date.UTC(y, m, 1) <= t1) {
+    if (count % stepMonths === 0) {
+      const showYear = m === 0 || out.length === 0;
+      out.push({
+        ms: Date.UTC(y, m, 1),
+        label: showYear ? `${MON[m]} '${String(y).slice(2)}` : MON[m],
+      });
+    }
+    count++;
+    m++;
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+  }
+  return out;
+}
+
+function fallbackEdges(t0: number, t1: number): XTick[] {
+  const fmt = (ms: number) => {
+    const d = new Date(ms);
+    return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  };
+  return [
+    { ms: t0, label: fmt(t0) },
+    { ms: t1, label: fmt(t1) },
+  ];
+}
+
+function thin(ticks: XTick[], max: number): XTick[] {
+  let out = ticks;
+  while (out.length > max) {
+    const kept = out.filter((_, i) => i % 2 === 0);
+    if (kept[kept.length - 1] !== out[out.length - 1]) kept.push(out[out.length - 1]);
+    out = kept;
+  }
+  return out;
 }
