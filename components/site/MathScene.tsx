@@ -18,9 +18,10 @@ import { StaticWaves } from "./StaticWaves";
 
 const STATES = 6;
 // Per-state placement, desktop. Index = scene state.
-const OFFSET_X = [0, 1.9, -2.6, -2.9, -3.1, 0];
-const OFFSET_Y = [-1.6, 0, -0.35, -1.35, -1.55, 0.55];
-const OPACITY = [1, 0.95, 0.6, 0.4, 0.6, 1];
+const OFFSET_X = [0, 1.9, -3.0, -2.9, -3.1, 0];
+const OFFSET_Y = [-1.6, 0, -1.2, -1.35, -0.7, 0.55];
+const OPACITY = [1, 0.95, 0.65, 0.4, 0.6, 1];
+const TRAIL = 48; // must match #define TRAIL in the shader
 const OPACITY_SMALL = [0.85, 0.6, 0.28, 0.28, 0.28, 0.85];
 
 function lerp(a: number, b: number, t: number) {
@@ -129,9 +130,8 @@ export function MathScene() {
       uOpacity: { value: 1 },
       uGx: { value: gx },
       uGy: { value: gy },
-      uMouse: { value: new THREE.Vector2(9, 9) },
       uAspect: { value: 1 },
-      uMouseAmt: { value: 0 },
+      uTrail: { value: Array.from({ length: TRAIL }, () => new THREE.Vector4(9, 9, 99, 0)) },
     };
     const material = new THREE.ShaderMaterial({
       uniforms,
@@ -197,15 +197,44 @@ export function MathScene() {
     document.fonts?.ready.then(measure).catch(() => {});
 
     // --- pointer: a slight change of perspective, never a takeover --------
-    const pointer = { x: 0, y: 0, moved: -1e9, seen: false };
+    const pointer = { x: 0, y: 0 };
+
+    // The cursor's recent path, sampled by distance travelled. Each sample is
+    // an impulse whose strength is how far the cursor moved to make it, so a
+    // resting cursor adds nothing and a fast swipe hits harder.
+    const trail: { x: number; y: number; born: number; w: number }[] = [];
+    let lastX = 0;
+    let lastY = 0;
+    let hasLast = false;
+    const STEP = 0.022; // NDC distance between samples
+
     const onPointer = (e: PointerEvent) => {
       pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
       pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
-      pointer.moved = performance.now();
-      pointer.seen = true;
+      const x = pointer.x;
+      const y = -pointer.y;
+      if (!hasLast) {
+        lastX = x;
+        lastY = y;
+        hasLast = true;
+        return;
+      }
+      const dist = Math.hypot((x - lastX) * camera.aspect, y - lastY);
+      if (dist < STEP) return;
+      const now = performance.now();
+      const n = Math.min(6, Math.floor(dist / STEP));
+      for (let i = 1; i <= n; i++) {
+        trail.push({
+          x: lastX + ((x - lastX) * i) / n,
+          y: lastY + ((y - lastY) * i) / n,
+          born: now,
+          w: Math.min(1, dist / n / 0.03),
+        });
+      }
+      while (trail.length > TRAIL) trail.shift();
+      lastX = x;
+      lastY = y;
     };
-    const mouseNdc = new THREE.Vector2(9, 9);
-    const mouseGoal = new THREE.Vector2();
     if (!reduce) window.addEventListener("pointermove", onPointer, { passive: true });
 
     // --- frame loop ---------------------------------------------------------
@@ -235,18 +264,15 @@ export function MathScene() {
       camera.position.y = lerp(camera.position.y, -pointer.y * 0.35, k);
       camera.lookAt(0, 0, 0);
 
-      if (pointer.seen && !reduce) {
-        // Follow the cursor with a little lag, so the disturbance trails it.
-        mouseGoal.set(pointer.x, -pointer.y);
-        if (mouseNdc.x > 8) mouseNdc.copy(mouseGoal);
-        else mouseNdc.lerp(mouseGoal, 1 - Math.exp(-dt * 10));
-        uniforms.uMouse.value.copy(mouseNdc);
+      if (!reduce) {
         uniforms.uAspect.value = camera.aspect;
-        // Strong while moving, healing over ~1s once the cursor rests.
-        const sinceMove = (performance.now() - pointer.moved) / 1000;
-        const goalAmt = sinceMove < 0.15 ? 1 : 0;
-        const rate = goalAmt > uniforms.uMouseAmt.value ? 6 : 1.6;
-        uniforms.uMouseAmt.value = lerp(uniforms.uMouseAmt.value, goalAmt, 1 - Math.exp(-dt * rate));
+        const now = performance.now();
+        const slots = uniforms.uTrail.value;
+        for (let i = 0; i < TRAIL; i++) {
+          const p = trail[i];
+          if (p) slots[i].set(p.x, p.y, (now - p.born) / 1000, p.w);
+          else slots[i].set(9, 9, 99, 0);
+        }
       }
 
       renderer.render(scene, camera);

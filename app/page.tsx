@@ -9,9 +9,9 @@ import { MonteCarloChart } from "@/components/site/viz/MonteCarloChart";
 import "./site.css";
 
 const DISCIPLINES = [
-  { n: "01", title: "Fundamental Analysis", line: "Understand the value.", scene: 2, Viz: ValuationChart },
-  { n: "02", title: "Technical Analysis", line: "Read the market.", scene: 3, Viz: TechnicalChart },
-  { n: "03", title: "Quantitative Research", line: "Test the hypothesis.", scene: 4, Viz: MonteCarloChart },
+  { n: "01", title: "Fundamental Analysis", scene: 2, Viz: ValuationChart },
+  { n: "02", title: "Technical Analysis", scene: 3, Viz: TechnicalChart },
+  { n: "03", title: "Quantitative Research", scene: 4, Viz: MonteCarloChart },
 ];
 
 export default function Home() {
@@ -42,14 +42,13 @@ export default function Home() {
             <h2>Three disciplines. One approach.</h2>
           </header>
 
-          {DISCIPLINES.map(({ n, title, line, scene, Viz }) => (
+          {DISCIPLINES.map(({ n, title, scene, Viz }) => (
             <article key={n} className="rdc-discipline" data-scene={scene}>
               <div className="rdc-discipline-text" data-reveal>
                 <h3>
                   <span className="rdc-discipline-n">{n} /</span>
                   {title}
                 </h3>
-                <p className="rdc-discipline-line">{line}</p>
               </div>
               <div className="rdc-discipline-viz" data-reveal>
                 <Viz />

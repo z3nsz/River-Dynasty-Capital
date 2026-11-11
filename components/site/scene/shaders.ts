@@ -5,7 +5,7 @@
  *
  *   0  three waves      — the logo, as travelling sinusoids
  *   1  Lorenz attractor — particles flowing along an RK4-integrated orbit
- *   2  yield curves     — a 3D bar chart of Treasury yields (Nelson–Siegel) through time
+ *   2  growth bars      — a rising bar chart, each bar a solid lattice of dots
  *   3  price & EMAs     — the waves resolving into a price path and its averages
  *   4  vol surface      — implied vol over log-moneyness × maturity, skew breathing
  *   5  Möbius strip     — three strips, closing the loop back to the three waves
@@ -25,9 +25,10 @@ uniform float uPixelRatio;
 uniform float uOpacity;
 uniform float uGx;
 uniform float uGy;
-uniform vec2 uMouse;     // cursor in normalized device coordinates
 uniform float uAspect;   // viewport width / height
-uniform float uMouseAmt; // 0 when the cursor is still, ~1 while it moves
+// Recent cursor path: xy = NDC position, z = age in seconds, w = impulse (0–1).
+#define TRAIL 48
+uniform vec4 uTrail[TRAIL];
 
 attribute vec2 aUV;
 attribute float aSeed;
@@ -82,52 +83,26 @@ vec3 lorenz(float seed, float t) {
   return rotX(rotY(q, t * 0.07), 0.18);
 }
 
-// 2 — Treasury yield curves through time, as a 3D bar chart.
-// Each curve is Nelson–Siegel: level β0, slope β1, curvature β2. The slope
-// cycles between upward-sloping and inverted, so inversions roll through.
-float nelsonSiegel(float tau, float ph) {
-  float s = sin(TAU * ph), c = cos(TAU * ph);
-  float b0 = 4.2 + 0.35 * c;
-  float b1 = -1.0 + 2.1 * s;
-  float b2 = 1.1 * c;
-  float x = tau / 1.8;
-  float f1 = (1.0 - exp(-x)) / x;
-  float f2 = f1 - exp(-x);
-  return clamp(b0 + b1 * f1 + b2 * f2, 0.05, 7.0);
-}
-float maturityOf(float m) { // 3M, 6M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 20Y, 30Y
-  if (m < 0.5) return 0.25;
-  if (m < 1.5) return 0.5;
-  if (m < 2.5) return 1.0;
-  if (m < 3.5) return 2.0;
-  if (m < 4.5) return 3.0;
-  if (m < 5.5) return 5.0;
-  if (m < 6.5) return 7.0;
-  if (m < 7.5) return 10.0;
-  if (m < 8.5) return 20.0;
-  return 30.0;
-}
-const float YB_M = 10.0;  // maturities per curve
-const float YB_T = 5.0;   // curves (dates), front to back
-float yieldDate(vec2 uv) {
+// 2 — a rising bar chart: twelve bars compounding left to right, each a solid
+// lattice of dots (6 wide × 2 deep), with a gentle wave of growth running through.
+const float GB_N = 12.0;
+vec3 growthBars(vec2 uv, float t) {
   float idx = rowOf(uv) * uGx + colOf(uv);
-  return floor(mod(idx, YB_M * YB_T) / YB_M);
-}
-vec3 yieldBars(vec2 uv, float t) {
-  float idx = rowOf(uv) * uGx + colOf(uv);
-  float bar = mod(idx, YB_M * YB_T);
-  float k = floor(idx / (YB_M * YB_T));
-  float levels = max(1.0, floor(uGx * uGy / (YB_M * YB_T) / 4.0) - 1.0);
-  float m = mod(bar, YB_M);
-  float s = floor(bar / YB_M);
-  float sub = mod(k, 4.0);
-  float lvl = min(floor(k / 4.0) / levels, 1.0);
-  float yv = nelsonSiegel(maturityOf(m), s / YB_T * 0.5 + t * 0.03);
-  vec3 p = vec3((m - 4.5) * 0.58 + (mod(sub, 2.0) - 0.5) * 0.11,
-                -1.3 + lvl * yv * 0.5,
-                (s - 2.0) * 0.85 + (floor(sub / 2.0) - 0.5) * 0.11);
-  p = rotY(p, -0.45 + 0.15 * sin(t * 0.05));
-  return rotX(p, 0.22);
+  float bar = mod(idx, GB_N);
+  float k = floor(idx / GB_N);
+  const float cols = 6.0;
+  const float layer = 12.0;               // cols × 2 deep
+  float levels = max(1.0, floor(uGx * uGy / GB_N / layer) - 1.0);
+  float c = mod(k, cols);
+  float dz = mod(floor(k / cols), 2.0);
+  float lvl = min(floor(k / layer) / levels, 1.0);
+  float f = bar / (GB_N - 1.0);
+  float h = (0.35 + 2.25 * pow(f, 1.35)) * (0.92 + 0.08 * sin(t * 0.8 - bar * 0.55));
+  vec3 p = vec3((bar - (GB_N - 1.0) * 0.5) * 0.36 + (c / (cols - 1.0) - 0.5) * 0.22,
+                -1.7 + lvl * h,
+                (dz - 0.5) * 0.1);
+  p = rotY(p, -0.32 + 0.08 * sin(t * 0.07));
+  return rotX(p, 0.12);
 }
 
 // 3 — price path (band 0) and two lagging, smoother averages (bands 1, 2).
@@ -178,7 +153,7 @@ vec3 mobius(vec2 uv, float t) {
 vec3 stateAt(float i, vec2 uv, float seed, float t) {
   if (i < 0.5) return waves(uv, t);
   if (i < 1.5) return lorenz(seed, t);
-  if (i < 2.5) return yieldBars(uv, t);
+  if (i < 2.5) return growthBars(uv, t);
   if (i < 3.5) return price(uv, t);
   if (i < 4.5) return volSurface(uv, t);
   return mobius(uv, t);
@@ -188,8 +163,6 @@ vec3 stateAt(float i, vec2 uv, float seed, float t) {
 // (every 2nd column, every 3rd row within each wave); other states use all
 // particles at varied sizes.
 float lookVis(float i, vec2 uv) {
-  // yield bars: back curves dimmer, for depth
-  if (i > 1.5 && i < 2.5) return 1.0 - 0.5 * yieldDate(uv) / (YB_T - 1.0);
   if (i > 0.5) return 1.0;
   float rowInWave = floor(inBand(uv) * uGy / 3.0);
   return (mod(colOf(uv), 2.0) < 0.5 && mod(rowInWave, 3.0) < 0.5) ? 1.0 : 0.0;
@@ -212,16 +185,33 @@ void main() {
   float lift = sin(m * 3.14159265);
   pos += (vec3(hash(aSeed * 17.0), hash(aSeed * 29.0), hash(aSeed * 43.0)) - 0.5) * lift * 0.32;
 
-  // Cursor: dots near it on screen push apart and scatter slightly, then
-  // settle back. Measured in screen space so depth/perspective can't offset it.
-  float inter = mix(lookInteract(uA), lookInteract(uB), m) * uMouseAmt;
+  // Cursor: every recent point on the cursor's path is an impulse that pushes
+  // nearby dots outward. Each dot then returns like a damped spring: a quick
+  // push, a slow ~2.5s settle with one soft overshoot. Mostly radial, with a
+  // little per-dot variation in angle and strength. Screen-space, so depth
+  // and perspective can't offset it from the cursor.
+  float inter = mix(lookInteract(uA), lookInteract(uB), m);
   if (inter > 0.001) {
     vec4 clip = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    vec2 d = (clip.xy / clip.w - uMouse) * vec2(uAspect, 1.0);
-    float f = exp(-dot(d, d) / 0.03) * inter;
-    vec3 jitter = vec3(hash(aSeed * 61.0), hash(aSeed * 73.0), hash(aSeed * 89.0)) - 0.5;
-    pos.xy += normalize(d + vec2(1e-4)) * f * 0.28;
-    pos += jitter * f * 0.35;
+    vec2 sp = clip.xy / clip.w;
+    vec2 push = vec2(0.0);
+    for (int j = 0; j < TRAIL; j++) {
+      vec4 tp = uTrail[j];
+      if (tp.z > 3.0) continue;
+      vec2 d = (sp - tp.xy) * vec2(uAspect, 1.0);
+      float r2 = dot(d, d);
+      if (r2 > 0.16) continue;
+      float age = tp.z;
+      float spring = (1.0 - exp(-age * 14.0)) * exp(-age * 1.25) * cos(age * 2.0);
+      push += normalize(d + vec2(1e-5)) * exp(-r2 / 0.028) * spring * tp.w;
+    }
+    float len = length(push);
+    if (len > 1.0) push /= len;
+    float ang = (hash(aSeed * 61.0) - 0.5) * 0.55;
+    float ca = cos(ang), sa = sin(ang);
+    push = vec2(ca * push.x - sa * push.y, sa * push.x + ca * push.y) * (0.8 + 0.4 * hash(aSeed * 73.0));
+    pos.xy += push * 0.4 * inter;
+    pos.z += length(push) * (hash(aSeed * 89.0) - 0.5) * 0.35 * inter;
   }
 
   float vis = mix(lookVis(uA, aUV), lookVis(uB, aUV), m);
