@@ -199,9 +199,10 @@ body:has(.rdc-site) {
   padding: 0 var(--gutter);
 }
 .rdc-strategy-head {
-  padding: 16vh 0 10vh;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 1.25rem;
 }
 .rdc-strategy-head h2 {

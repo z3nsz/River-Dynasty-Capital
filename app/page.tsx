@@ -9,9 +9,9 @@ import { MonteCarloChart } from "@/components/site/viz/MonteCarloChart";
 import "./site.css";
 
 const DISCIPLINES = [
-  { n: "01", title: "Fundamental Analysis", scene: 2, Viz: ValuationChart },
-  { n: "02", title: "Technical Analysis", scene: 3, Viz: TechnicalChart },
-  { n: "03", title: "Quantitative Research", scene: 4, Viz: MonteCarloChart },
+  { n: "01", title: "Fundamental Analysis", scene: 3, Viz: ValuationChart },
+  { n: "02", title: "Technical Analysis", scene: 4, Viz: TechnicalChart },
+  { n: "03", title: "Quantitative Research", scene: 5, Viz: MonteCarloChart },
 ];
 
 export default function Home() {
@@ -37,7 +37,7 @@ export default function Home() {
         </section>
 
         <section id="strategy" className="rdc-strategy">
-          <header className="rdc-strategy-head" data-reveal>
+          <header className="rdc-strategy-head" data-reveal data-scene="2">
             <p className="rdc-eyebrow">Strategy</p>
             <h2>Three disciplines. One approach.</h2>
           </header>
@@ -58,7 +58,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="rdc-footer" data-scene="5">
+      <footer className="rdc-footer" data-scene="6">
         <div className="rdc-footer-row">
           <div className="rdc-footer-brand">
             <Logo size={28} className="rdc-nav-logo" />

@@ -16,13 +16,14 @@ import { StaticWaves } from "./StaticWaves";
  * belong to via data-scene; they never own the animation.
  */
 
-const STATES = 6;
+const STATES = 7;
 // Per-state placement, desktop. Index = scene state.
-const OFFSET_X = [0, 1.9, -3.0, -2.9, -3.1, 0];
-const OFFSET_Y = [-1.6, 0, -1.2, -1.35, -0.7, 0.55];
-const OPACITY = [1, 0.95, 0.65, 0.4, 0.6, 1];
+// waves, Lorenz, chess, bars, price, vol surface, Möbius
+const OFFSET_X = [0, 1.9, 2.3, -3.0, -2.9, -3.1, 0];
+const OFFSET_Y = [-1.6, 0, -0.25, -1.2, -1.35, -0.7, 0.55];
+const OPACITY = [1, 0.95, 0.95, 0.65, 0.4, 0.6, 1];
 const TRAIL = 48; // must match #define TRAIL in the shader
-const OPACITY_SMALL = [0.85, 0.6, 0.28, 0.28, 0.28, 0.85];
+const OPACITY_SMALL = [0.85, 0.6, 0.55, 0.28, 0.28, 0.28, 0.85];
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
