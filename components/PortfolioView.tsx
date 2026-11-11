@@ -38,18 +38,23 @@ export function PortfolioView(props: PortfolioViewProps) {
 
 function Inner({ tagline, fund }: PortfolioViewProps) {
   return (
-    <div className="mx-auto w-full max-w-sheet px-4 sm:px-8">
-      <header className="border-b border-ink pb-5 pt-10">
-        <div className="flex items-center gap-3">
-          <Logo size={40} className="shrink-0 rounded-[11px]" />
-          <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-            River Dynasty Capital
-          </h1>
+    <div className="site-shell mx-auto w-full max-w-sheet px-4 sm:px-8">
+      <header className="site-header border-b border-ink pb-6 pt-8 sm:pt-10">
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="flex items-center gap-3">
+            <Logo size={44} className="shrink-0 rounded-[13px] shadow-sm" />
+            <div>
+              <p className="eyebrow mb-1">Investment office · Est. 2020</p>
+              <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+                River Dynasty Capital
+              </h1>
+            </div>
+          </div>
+          <div className="pt-1">
+            <MarketBadge />
+          </div>
         </div>
-        <p className="mt-2 max-w-prose text-sm text-muted">{tagline}</p>
-        <div className="mt-4">
-          <MarketBadge />
-        </div>
+        <p className="mt-5 max-w-2xl text-sm leading-6 text-muted">{tagline}</p>
       </header>
       <SleeveBody fund={fund} />
       <Footer />
