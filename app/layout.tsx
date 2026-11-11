@@ -24,9 +24,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "River Dynasty Capital — Track Record",
-  description:
-    "A personal investment track record: portfolio performance versus the S&P 500, holding by holding, with a written thesis for each position. Percentages only.",
+  title: "River Dynasty Capital",
+  description: "Research. Trade. Invest. An independent proprietary investment and trading operation.",
   robots: { index: true, follow: true },
 };
 

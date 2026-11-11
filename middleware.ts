@@ -2,8 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ADMIN_COOKIE, verifySessionToken } from "@/lib/auth";
 
 /**
- * Gate everything under /admin and /api/admin, except the login + logout
- * endpoints themselves. Public routes are untouched.
+ * Gate the private side of the site: /admin, /api/admin, the portfolio page
+ * and the live-prices feed it polls (which would otherwise list holdings).
+ * The login + logout endpoints themselves stay open. The public firm page is
+ * untouched.
  */
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -28,5 +30,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/portfolio/:path*", "/api/prices"],
 };
