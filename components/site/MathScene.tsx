@@ -129,6 +129,9 @@ export function MathScene() {
       uOpacity: { value: 1 },
       uGx: { value: gx },
       uGy: { value: gy },
+      uMouse: { value: new THREE.Vector2(9, 9) },
+      uAspect: { value: 1 },
+      uMouseAmt: { value: 0 },
     };
     const material = new THREE.ShaderMaterial({
       uniforms,
@@ -194,11 +197,15 @@ export function MathScene() {
     document.fonts?.ready.then(measure).catch(() => {});
 
     // --- pointer: a slight change of perspective, never a takeover --------
-    const pointer = { x: 0, y: 0 };
+    const pointer = { x: 0, y: 0, moved: -1e9, seen: false };
     const onPointer = (e: PointerEvent) => {
       pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
       pointer.y = (e.clientY / window.innerHeight) * 2 - 1;
+      pointer.moved = performance.now();
+      pointer.seen = true;
     };
+    const mouseNdc = new THREE.Vector2(9, 9);
+    const mouseGoal = new THREE.Vector2();
     if (!reduce) window.addEventListener("pointermove", onPointer, { passive: true });
 
     // --- frame loop ---------------------------------------------------------
@@ -227,6 +234,21 @@ export function MathScene() {
       camera.position.x = lerp(camera.position.x, pointer.x * 0.55, k);
       camera.position.y = lerp(camera.position.y, -pointer.y * 0.35, k);
       camera.lookAt(0, 0, 0);
+
+      if (pointer.seen && !reduce) {
+        // Follow the cursor with a little lag, so the disturbance trails it.
+        mouseGoal.set(pointer.x, -pointer.y);
+        if (mouseNdc.x > 8) mouseNdc.copy(mouseGoal);
+        else mouseNdc.lerp(mouseGoal, 1 - Math.exp(-dt * 10));
+        uniforms.uMouse.value.copy(mouseNdc);
+        uniforms.uAspect.value = camera.aspect;
+        // Strong while moving, healing over ~1s once the cursor rests.
+        const sinceMove = (performance.now() - pointer.moved) / 1000;
+        const goalAmt = sinceMove < 0.15 ? 1 : 0;
+        const rate = goalAmt > uniforms.uMouseAmt.value ? 6 : 1.6;
+        uniforms.uMouseAmt.value = lerp(uniforms.uMouseAmt.value, goalAmt, 1 - Math.exp(-dt * rate));
+      }
+
       renderer.render(scene, camera);
     };
 

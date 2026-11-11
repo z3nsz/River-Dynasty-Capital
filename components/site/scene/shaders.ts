@@ -25,6 +25,9 @@ uniform float uPixelRatio;
 uniform float uOpacity;
 uniform float uGx;
 uniform float uGy;
+uniform vec2 uMouse;     // cursor in normalized device coordinates
+uniform float uAspect;   // viewport width / height
+uniform float uMouseAmt; // 0 when the cursor is still, ~1 while it moves
 
 attribute vec2 aUV;
 attribute float aSeed;
@@ -194,6 +197,10 @@ float lookVis(float i, vec2 uv) {
 float lookSize(float i, float seed) {
   return i < 0.5 ? 2.1 : 0.55 + 0.9 * hash(seed * 7.0);
 }
+// Only the opening waves and the closing Möbius strip react to the cursor.
+float lookInteract(float i) {
+  return (i < 0.5 || i > 4.5) ? 1.0 : 0.0;
+}
 
 void main() {
   vec3 a = stateAt(uA, aUV, aSeed, uTime);
@@ -204,6 +211,18 @@ void main() {
   vec3 pos = mix(a, b, m);
   float lift = sin(m * 3.14159265);
   pos += (vec3(hash(aSeed * 17.0), hash(aSeed * 29.0), hash(aSeed * 43.0)) - 0.5) * lift * 0.32;
+
+  // Cursor: dots near it on screen push apart and scatter slightly, then
+  // settle back. Measured in screen space so depth/perspective can't offset it.
+  float inter = mix(lookInteract(uA), lookInteract(uB), m) * uMouseAmt;
+  if (inter > 0.001) {
+    vec4 clip = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    vec2 d = (clip.xy / clip.w - uMouse) * vec2(uAspect, 1.0);
+    float f = exp(-dot(d, d) / 0.03) * inter;
+    vec3 jitter = vec3(hash(aSeed * 61.0), hash(aSeed * 73.0), hash(aSeed * 89.0)) - 0.5;
+    pos.xy += normalize(d + vec2(1e-4)) * f * 0.28;
+    pos += jitter * f * 0.35;
+  }
 
   float vis = mix(lookVis(uA, aUV), lookVis(uB, aUV), m);
   float size = mix(lookSize(uA, aSeed), lookSize(uB, aSeed), m);
