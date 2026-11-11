@@ -45,10 +45,11 @@ export default function Home() {
           {DISCIPLINES.map(({ n, title, line, scene, Viz }) => (
             <article key={n} className="rdc-discipline" data-scene={scene}>
               <div className="rdc-discipline-text" data-reveal>
-                <p className="rdc-eyebrow">
-                  {n} / {title}
-                </p>
-                <h3>{line}</h3>
+                <h3>
+                  <span className="rdc-discipline-n">{n} /</span>
+                  {title}
+                </h3>
+                <p className="rdc-discipline-line">{line}</p>
               </div>
               <div className="rdc-discipline-viz" data-reveal>
                 <Viz />

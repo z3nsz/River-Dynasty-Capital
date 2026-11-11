@@ -11,8 +11,8 @@ import { emaAlpha, emaStep, gaussian, mulberry32 } from "@/lib/site/math";
  * chart slides by a fraction of a bar every frame and the newest segment grows
  * toward the next value, so motion is fluid rather than stepped. EMA(12),
  * EMA(26) and the MACD histogram are updated incrementally. Market structure
- * comes from confirmed swing highs/lows; a close through the last swing level
- * is marked as a breakout.
+ * is drawn as the last confirmed swing high/low; a level is retired once
+ * price closes through it.
  */
 
 const N = 190;
@@ -28,11 +28,6 @@ interface Bar {
   slow: number;
   hist: number;
 }
-interface Mark {
-  age: number; // bars since it happened
-  level: number;
-  up: boolean;
-}
 
 export function TechnicalChart() {
   const st = useRef<{
@@ -45,7 +40,6 @@ export function TechnicalChart() {
     acc: number;
     swingHi: number | null;
     swingLo: number | null;
-    marks: Mark[];
     lo: number;
     hi: number;
     mHi: number;
@@ -67,8 +61,6 @@ export function TechnicalChart() {
     s.sig = emaStep(s.sig, macd, aSig);
     s.bars.push({ p, fast, slow, hist: macd - s.sig });
     s.bars.shift();
-    for (const m of s.marks) m.age++;
-    s.marks = s.marks.filter((m) => m.age < N);
 
     // confirm a swing at bars[len-1-SWING]
     const c = s.bars.length - 1 - SWING;
@@ -83,16 +75,9 @@ export function TechnicalChart() {
     if (isHi) s.swingHi = pc;
     if (isLo) s.swingLo = pc;
 
-    // breakout through the last confirmed structure level
-    const prev = last.p;
-    if (s.swingHi !== null && prev <= s.swingHi && p > s.swingHi) {
-      s.marks.push({ age: 0, level: s.swingHi, up: true });
-      s.swingHi = null;
-    }
-    if (s.swingLo !== null && prev >= s.swingLo && p < s.swingLo) {
-      s.marks.push({ age: 0, level: s.swingLo, up: false });
-      s.swingLo = null;
-    }
+    // retire a structure level once price closes through it
+    if (s.swingHi !== null && p > s.swingHi) s.swingHi = null;
+    if (s.swingLo !== null && p < s.swingLo) s.swingLo = null;
 
     s.next = p + s.drift + s.noise + 0.004 * (100 - p);
   };
@@ -111,7 +96,6 @@ export function TechnicalChart() {
         acc: 0,
         swingHi: null,
         swingLo: null,
-        marks: [],
         lo: 95,
         hi: 105,
         mHi: 0.5,
@@ -241,31 +225,6 @@ export function TechnicalChart() {
     ctx.lineTo(x(N - 1) + dx * phase, y(tipP));
     ctx.stroke();
 
-    // breakout marks
-    ctx.font = `9px ${mono}`;
-    ctx.textBaseline = "alphabetic";
-    for (const m of s.marks) {
-      const i = N - 1 - m.age;
-      const px = x(i);
-      const fade = Math.max(0, 1 - m.age / N);
-      ctx.globalAlpha = 0.35 + 0.65 * fade;
-      ctx.fillStyle = m.up ? C.teal : C.coral;
-      const py = y(m.level);
-      ctx.beginPath();
-      if (m.up) {
-        ctx.moveTo(px, py - 9);
-        ctx.lineTo(px - 4, py - 3);
-        ctx.lineTo(px + 4, py - 3);
-      } else {
-        ctx.moveTo(px, py + 9);
-        ctx.lineTo(px - 4, py + 3);
-        ctx.lineTo(px + 4, py + 3);
-      }
-      ctx.fill();
-      if (m.age < 70) ctx.fillText(m.up ? "breakout" : "breakdown", px + 6, m.up ? py - 4 : py + 12);
-    }
-    ctx.globalAlpha = 1;
-
     // momentum histogram (MACD − signal)
     for (let i = 0; i < N; i++) {
       const v = s.bars[i].hist;
@@ -308,7 +267,7 @@ export function TechnicalChart() {
         ref={canvasRef}
         className="rdc-viz-canvas"
         role="img"
-        aria-label="Illustrative live price chart with 12- and 26-period exponential moving averages, MACD momentum histogram, swing-level market structure and breakout markers."
+        aria-label="Illustrative live price chart with 12- and 26-period exponential moving averages, MACD momentum histogram and swing-level market structure."
       />
     </div>
   );

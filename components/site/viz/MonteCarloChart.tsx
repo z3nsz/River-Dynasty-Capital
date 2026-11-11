@@ -13,21 +13,33 @@ import {
 /**
  * Quantitative Research — hypothesis versus simulation.
  *
- * Batches of geometric Brownian motion paths (S0 = 100, μ = 8%, one year) are
- * drawn; their terminal values accumulate into a histogram that converges on
- * the closed-form lognormal density drawn over it. The readouts compare the
- * analytic E[S_T] and P(S_T < S0) with what the simulation has measured so far.
- * Changing σ restarts the experiment.
+ * Geometric Brownian motion paths (S0 = 100, μ = 8%, one year) launch in a
+ * continuous stream. Each one is traced out with a moving head; when it reaches
+ * maturity its terminal value travels across into the histogram, whose bars
+ * grow toward the counts and converge on the closed-form lognormal density.
+ * Readouts compare the analytic E[S_T] and P(S_T < S0) with the running
+ * simulation. Changing σ restarts the experiment.
  */
 
 const S0 = 100;
 const MU = 0.08;
 const T = 1;
 const STEPS = 126;
-const RUN = 2.4; // seconds to draw one batch
-const HOLD = 0.7;
+const DRAW = 1.9; // seconds to trace one path
+const FLY = 0.45; // seconds for the terminal value to reach the histogram
+const LINGER = 0.9; // seconds a finished path stays visible
 const BINS = 36;
 const CAP = 6000;
+
+interface Live {
+  data: Float32Array;
+  born: number;
+  sent: boolean; // terminal value already sent to the histogram
+}
+interface Flyer {
+  v: number;
+  born: number;
+}
 
 export function MonteCarloChart() {
   const [sigma, setSigma] = useState(0.24);
@@ -38,24 +50,22 @@ export function MonteCarloChart() {
   const st = useRef<{
     rand: () => number;
     sigma: number;
-    paths: Float32Array[];
-    finals: number[];
     clock: number;
+    nextSpawn: number;
+    live: Live[];
+    flyers: Flyer[];
+    finals: number[];
+    bars: Float32Array; // displayed densities, eased toward the counts
+    flash: Float32Array; // per-bin highlight when a value lands
     lo: number;
     hi: number;
-    batch: number;
+    gen: number;
   } | null>(null);
-
-  const newBatch = (n: number) => {
-    const s = st.current!;
-    s.paths = Array.from({ length: n }, () => gbmPath(S0, MU, s.sigma, T, STEPS, s.rand));
-    s.clock = 0;
-    s.batch++;
-  };
 
   const { canvasRef, redraw } = useCanvasLoop(({ ctx, w, h, dt, reduce, mono }) => {
     const sig = sigmaRef.current;
-    const nPaths = w < 520 ? 36 : 64;
+    const narrow = w < 520;
+    const spawnEvery = narrow ? 0.09 : 0.055;
     const bounds = (sg: number) => {
       const m = (MU - (sg * sg) / 2) * T;
       const sd = sg * Math.sqrt(T);
@@ -63,58 +73,75 @@ export function MonteCarloChart() {
     };
 
     if (!st.current || st.current.sigma !== sig) {
-      const prevLo = st.current?.lo;
-      const prevHi = st.current?.hi;
+      const prev = st.current;
+      const gen = (prev?.gen ?? 0) + 1;
       st.current = {
-        rand: mulberry32(st.current ? st.current.batch * 7919 + 13 : 99),
+        rand: mulberry32(gen * 7919 + 13),
         sigma: sig,
-        paths: [],
-        finals: [],
         clock: 0,
-        lo: prevLo ?? bounds(sig)[0],
-        hi: prevHi ?? bounds(sig)[1],
-        batch: st.current?.batch ?? 0,
+        nextSpawn: 0,
+        live: [],
+        flyers: [],
+        finals: [],
+        bars: new Float32Array(BINS),
+        flash: new Float32Array(BINS),
+        lo: prev?.lo ?? bounds(sig)[0],
+        hi: prev?.hi ?? bounds(sig)[1],
+        gen,
       };
-      newBatch(nPaths);
       if (reduce) {
-        // static frame: show a fully simulated sample
-        for (let i = 0; i < 40; i++) {
-          for (const p of st.current.paths) st.current.finals.push(p[STEPS]);
-          newBatch(nPaths);
-        }
-        st.current.clock = RUN;
+        // Static frame: a fully simulated sample plus a fan of finished paths.
+        const s = st.current;
+        for (let i = 0; i < 2500; i++) s.finals.push(gbmPath(S0, MU, sig, T, STEPS, s.rand)[STEPS]);
+        for (let i = 0; i < 50; i++) s.live.push({ data: gbmPath(S0, MU, sig, T, STEPS, s.rand), born: -DRAW, sent: true });
       }
     }
     const s = st.current;
 
+    // --- simulate ---------------------------------------------------------
     if (!reduce) {
       s.clock += dt;
-      if (s.clock >= RUN + HOLD) {
-        for (const p of s.paths) s.finals.push(p[STEPS]);
-        if (s.finals.length > CAP) s.finals.splice(0, s.finals.length - CAP);
-        newBatch(nPaths);
+      while (s.clock >= s.nextSpawn) {
+        s.live.push({ data: gbmPath(S0, MU, sig, T, STEPS, s.rand), born: s.nextSpawn, sent: false });
+        s.nextSpawn += spawnEvery;
       }
+      for (const p of s.live) {
+        if (!p.sent && s.clock - p.born >= DRAW) {
+          p.sent = true;
+          s.flyers.push({ v: p.data[STEPS], born: s.clock });
+        }
+      }
+      s.live = s.live.filter((p) => s.clock - p.born < DRAW + LINGER);
     }
-    const drawn = Math.min(1, s.clock / RUN);
-    const upto = Math.max(1, Math.floor(drawn * STEPS));
 
     const [bLo, bHi] = bounds(sig);
-    const k = reduce ? 1 : 1 - Math.exp(-dt * 3);
-    s.lo += (bLo - s.lo) * k;
-    s.hi += (bHi - s.hi) * k;
+    const ease = reduce ? 1 : 1 - Math.exp(-dt * 3);
+    s.lo += (bLo - s.lo) * ease;
+    s.hi += (bHi - s.hi) * ease;
+    const range = s.hi - s.lo;
+    const bw = range / BINS;
 
-    const narrow = w < 520;
+    // landed values join the sample and light their bin
+    s.flyers = s.flyers.filter((f) => {
+      if (s.clock - f.born < FLY) return true;
+      s.finals.push(f.v);
+      const b = Math.floor((f.v - s.lo) / bw);
+      if (b >= 0 && b < BINS) s.flash[b] = 1;
+      return false;
+    });
+    if (s.finals.length > CAP) s.finals.splice(0, s.finals.length - CAP);
+
+    // --- layout -----------------------------------------------------------
     const padT = 30;
     const padB = 18;
-    const pathR = narrow ? w * 0.68 : w * 0.72;
-    const histL = pathR + 10;
+    const pathR = narrow ? w * 0.66 : w * 0.7;
+    const histL = pathR + 14;
     const histW = w - histL - 4;
-    const y = (v: number) => padT + (1 - (v - s.lo) / (s.hi - s.lo)) * (h - padT - padB);
+    const y = (v: number) => padT + (1 - (v - s.lo) / range) * (h - padT - padB);
     const x = (i: number) => (i / STEPS) * pathR;
 
     ctx.clearRect(0, 0, w, h);
 
-    // S0 reference
     ctx.strokeStyle = C.grid;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -122,27 +149,45 @@ export function MonteCarloChart() {
     ctx.lineTo(w, y(S0));
     ctx.stroke();
 
-    // paths
+    // --- paths, each traced with a moving head ----------------------------
     ctx.save();
     ctx.beginPath();
-    ctx.rect(0, 0, pathR, h);
+    ctx.rect(0, 0, pathR + 3, h);
     ctx.clip();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(47,191,173,0.17)";
-    for (const p of s.paths) {
+    for (const p of s.live) {
+      const age = s.clock - p.born;
+      const prog = Math.min(1, age / DRAW);
+      const fade = age > DRAW ? 1 - (age - DRAW) / LINGER : 1;
+      const f = prog * STEPS;
+      const upto = Math.floor(f);
+      const frac = f - upto;
+      ctx.strokeStyle = `rgba(47,191,173,${(0.2 * fade).toFixed(3)})`;
+      ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, y(p[0]));
-      for (let i = 1; i <= upto; i++) ctx.lineTo(x(i), y(p[i]));
+      ctx.moveTo(0, y(p.data[0]));
+      for (let i = 1; i <= upto; i++) ctx.lineTo(x(i), y(p.data[i]));
+      let hx = x(upto);
+      let hy = y(p.data[upto]);
+      if (upto < STEPS) {
+        hx = x(upto + frac);
+        hy = y(p.data[upto] + (p.data[upto + 1] - p.data[upto]) * frac);
+        ctx.lineTo(hx, hy);
+      }
       ctx.stroke();
+      if (prog < 1) {
+        ctx.fillStyle = "rgba(160,232,222,0.85)";
+        ctx.beginPath();
+        ctx.arc(hx, hy, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     // analytic expectation S0·e^{μt}
     ctx.setLineDash([4, 4]);
     ctx.strokeStyle = C.ink;
     ctx.beginPath();
     for (let i = 0; i <= STEPS; i++) {
-      const t = (i / STEPS) * T;
       const px = x(i);
-      const py = y(gbmMean(S0, MU, t));
+      const py = y(gbmMean(S0, MU, (i / STEPS) * T));
       if (i === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
@@ -150,28 +195,36 @@ export function MonteCarloChart() {
     ctx.setLineDash([]);
     ctx.restore();
 
-    // histogram of accumulated terminal values, with the lognormal density
-    const range = s.hi - s.lo;
-    const bw = range / BINS;
+    // terminal values flying into the histogram
+    for (const fl of s.flyers) {
+      const k = Math.min(1, (s.clock - fl.born) / FLY);
+      const e = k * k * (3 - 2 * k);
+      ctx.fillStyle = `rgba(160,232,222,${(1 - 0.5 * k).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(pathR + (histL - pathR) * e + 2, y(fl.v), 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- histogram, easing toward the counts ------------------------------
     const counts = new Array(BINS).fill(0);
-    for (const f of s.finals) {
-      const b = Math.floor((f - s.lo) / bw);
+    for (const v of s.finals) {
+      const b = Math.floor((v - s.lo) / bw);
       if (b >= 0 && b < BINS) counts[b]++;
     }
     const n = s.finals.length;
     let pdfMax = 0;
-    for (let i = 0; i <= 80; i++) {
-      pdfMax = Math.max(pdfMax, gbmTerminalPdf(s.lo + (range * i) / 80, S0, MU, sig, T));
-    }
+    for (let i = 0; i <= 80; i++) pdfMax = Math.max(pdfMax, gbmTerminalPdf(s.lo + (range * i) / 80, S0, MU, sig, T));
     const scale = histW / (pdfMax * 1.08);
-    if (n > 0) {
-      ctx.fillStyle = "rgba(74,143,196,0.42)";
-      for (let b = 0; b < BINS; b++) {
-        const density = counts[b] / (n * bw);
-        const top = y(s.lo + (b + 1) * bw);
-        const bot = y(s.lo + b * bw);
-        ctx.fillRect(histL, top + 0.5, density * scale, Math.max(1, bot - top - 1));
-      }
+    const grow = reduce ? 1 : 1 - Math.exp(-dt * 6);
+    for (let b = 0; b < BINS; b++) {
+      const target = n ? counts[b] / (n * bw) : 0;
+      s.bars[b] += (target - s.bars[b]) * grow;
+      s.flash[b] = reduce ? 0 : Math.max(0, s.flash[b] - dt * 2.5);
+      const top = y(s.lo + (b + 1) * bw);
+      const bot = y(s.lo + b * bw);
+      const a = 0.38 + 0.4 * s.flash[b];
+      ctx.fillStyle = `rgba(74,143,196,${a.toFixed(3)})`;
+      ctx.fillRect(histL, top + 0.5, s.bars[b] * scale, Math.max(1, bot - top - 1));
     }
     ctx.strokeStyle = C.ink;
     ctx.lineWidth = 1.25;
@@ -185,7 +238,7 @@ export function MonteCarloChart() {
     }
     ctx.stroke();
 
-    // readouts: theory vs. simulation
+    // --- readouts: theory vs. simulation ----------------------------------
     const eT = gbmMean(S0, MU, T);
     const pT = gbmProbBelowStart(MU, sig, T);
     const eS = n ? s.finals.reduce((a, b) => a + b, 0) / n : NaN;

@@ -5,7 +5,7 @@
  *
  *   0  three waves      — the logo, as travelling sinusoids
  *   1  Lorenz attractor — particles flowing along an RK4-integrated orbit
- *   2  valuation        — two-stage DCF value over growth × discount rate
+ *   2  yield curves     — a 3D bar chart of Treasury yields (Nelson–Siegel) through time
  *   3  price & EMAs     — the waves resolving into a price path and its averages
  *   4  vol surface      — implied vol over log-moneyness × maturity, skew breathing
  *   5  Möbius strip     — three strips, closing the loop back to the three waves
@@ -23,6 +23,8 @@ uniform float uLorenzN;
 uniform float uSize;
 uniform float uPixelRatio;
 uniform float uOpacity;
+uniform float uGx;
+uniform float uGy;
 
 attribute vec2 aUV;
 attribute float aSeed;
@@ -47,16 +49,20 @@ vec3 rotX(vec3 p, float a) {
 float bandOf(vec2 uv) { return min(floor(uv.y * 3.0), 2.0); }
 float inBand(vec2 uv) { return uv.y * 3.0 - bandOf(uv); }
 
-// 0 — three parallel waves, as in the mark.
+// Grid position of this particle (column, row).
+float colOf(vec2 uv) { return floor(uv.x * (uGx - 1.0) + 0.5); }
+float rowOf(vec2 uv) { return floor(uv.y * uGy); }
+
+// 0 — three parallel waves, as in the mark: tall, thick, made of spaced dots.
 vec3 waves(vec2 uv, float t) {
   float b = bandOf(uv), vb = inBand(uv);
   float x = (uv.x - 0.5) * 9.5;
   float k = TAU * 1.5 / 9.5;
-  float y = (1.0 - b) * 0.62
-          + 0.34 * sin(k * x - t * 0.55 + b * 0.16)
-          + 0.045 * sin(2.6 * k * x + t * 0.8 + b);
-  y += (vb - 0.5) * 0.05;
-  float z = (vb - 0.5) * 0.5 + 0.12 * sin(0.7 * k * x + t * 0.4 + b * 1.3);
+  float y = (1.0 - b) * 0.74
+          + 0.48 * sin(k * x - t * 0.55 + b * 0.16)
+          + 0.05 * sin(2.6 * k * x + t * 0.8 + b);
+  y += (vb - 0.5) * 0.22;
+  float z = (vb - 0.5) * 0.3 + 0.12 * sin(0.7 * k * x + t * 0.4 + b * 1.3);
   return vec3(x, y, z);
 }
 
@@ -73,21 +79,52 @@ vec3 lorenz(float seed, float t) {
   return rotX(rotY(q, t * 0.07), 0.18);
 }
 
-// 2 — intrinsic value surface: ln V(g, r), five explicit years + Gordon terminal.
-float dcf(float g, float r) {
-  float fcf = 1.0, d = 1.0, pv = 0.0;
-  for (int i = 0; i < 5; i++) { fcf *= 1.0 + g; d *= 1.0 + r; pv += fcf / d; }
-  const float gt = 0.025;
-  return pv + fcf * (1.0 + gt) / (r - gt) / d;
+// 2 — Treasury yield curves through time, as a 3D bar chart.
+// Each curve is Nelson–Siegel: level β0, slope β1, curvature β2. The slope
+// cycles between upward-sloping and inverted, so inversions roll through.
+float nelsonSiegel(float tau, float ph) {
+  float s = sin(TAU * ph), c = cos(TAU * ph);
+  float b0 = 4.2 + 0.35 * c;
+  float b1 = -1.0 + 2.1 * s;
+  float b2 = 1.1 * c;
+  float x = tau / 1.8;
+  float f1 = (1.0 - exp(-x)) / x;
+  float f2 = f1 - exp(-x);
+  return clamp(b0 + b1 * f1 + b2 * f2, 0.05, 7.0);
 }
-vec3 valuation(vec2 uv, float t) {
-  float g = uv.x * 0.20;            // 0–20% growth
-  float r = 0.07 + uv.y * 0.06;     // 7–13% discount rate
-  float v = log(dcf(g, r));
-  vec3 p = vec3((uv.x - 0.5) * 5.6, (v - 3.0) * 1.2, (uv.y - 0.5) * 4.4);
-  p.y += 0.035 * sin(uv.x * 16.0 - t * 0.9);
-  p = rotY(p, 0.6 + 0.25 * sin(t * 0.06));
-  return rotX(p, 0.48);
+float maturityOf(float m) { // 3M, 6M, 1Y, 2Y, 3Y, 5Y, 7Y, 10Y, 20Y, 30Y
+  if (m < 0.5) return 0.25;
+  if (m < 1.5) return 0.5;
+  if (m < 2.5) return 1.0;
+  if (m < 3.5) return 2.0;
+  if (m < 4.5) return 3.0;
+  if (m < 5.5) return 5.0;
+  if (m < 6.5) return 7.0;
+  if (m < 7.5) return 10.0;
+  if (m < 8.5) return 20.0;
+  return 30.0;
+}
+const float YB_M = 10.0;  // maturities per curve
+const float YB_T = 5.0;   // curves (dates), front to back
+float yieldDate(vec2 uv) {
+  float idx = rowOf(uv) * uGx + colOf(uv);
+  return floor(mod(idx, YB_M * YB_T) / YB_M);
+}
+vec3 yieldBars(vec2 uv, float t) {
+  float idx = rowOf(uv) * uGx + colOf(uv);
+  float bar = mod(idx, YB_M * YB_T);
+  float k = floor(idx / (YB_M * YB_T));
+  float levels = max(1.0, floor(uGx * uGy / (YB_M * YB_T) / 4.0) - 1.0);
+  float m = mod(bar, YB_M);
+  float s = floor(bar / YB_M);
+  float sub = mod(k, 4.0);
+  float lvl = min(floor(k / 4.0) / levels, 1.0);
+  float yv = nelsonSiegel(maturityOf(m), s / YB_T * 0.5 + t * 0.03);
+  vec3 p = vec3((m - 4.5) * 0.58 + (mod(sub, 2.0) - 0.5) * 0.11,
+                -1.3 + lvl * yv * 0.5,
+                (s - 2.0) * 0.85 + (floor(sub / 2.0) - 0.5) * 0.11);
+  p = rotY(p, -0.45 + 0.15 * sin(t * 0.05));
+  return rotX(p, 0.22);
 }
 
 // 3 — price path (band 0) and two lagging, smoother averages (bands 1, 2).
@@ -114,10 +151,13 @@ float iv(float k, float T, float st) {
 vec3 volSurface(vec2 uv, float t) {
   float k = (uv.x - 0.5) * 0.8;     // log-moneyness ±0.4
   float T = 0.05 + uv.y * 1.95;     // 0.05–2 years
-  float st = 0.5 + 0.5 * sin(t * 0.22);
-  vec3 p = vec3(k * 7.0, (iv(k, T, st) - 0.3) * 7.0, (uv.y - 0.5) * 4.6);
-  p = rotY(p, -0.6 + 0.2 * sin(t * 0.05));
-  return rotX(p, 0.42);
+  float st = 0.5 + 0.5 * sin(t * 0.35);
+  // Vol shocks: one wave travelling down the term structure, one across strikes.
+  float ripple = (0.55 * sin(uv.y * 8.0 - t * 1.2 + k * 5.0)
+                + 0.2 * sin(k * 14.0 + t * 0.9)) * (0.7 + 0.3 * sin(t * 0.3));
+  vec3 p = vec3(k * 7.0, (iv(k, T, st) - 0.3) * 11.0 + ripple, (uv.y - 0.5) * 4.6) * 0.7;
+  p = rotY(p, -0.75 + 0.2 * sin(t * 0.05));
+  return rotX(p, 0.38);
 }
 
 // 5 — Möbius strip carrying three strips: the three waves, closed into one surface.
@@ -135,10 +175,24 @@ vec3 mobius(vec2 uv, float t) {
 vec3 stateAt(float i, vec2 uv, float seed, float t) {
   if (i < 0.5) return waves(uv, t);
   if (i < 1.5) return lorenz(seed, t);
-  if (i < 2.5) return valuation(uv, t);
+  if (i < 2.5) return yieldBars(uv, t);
   if (i < 3.5) return price(uv, t);
   if (i < 4.5) return volSurface(uv, t);
   return mobius(uv, t);
+}
+
+// Per-state look. The waves are a sparser lattice of larger, even dots
+// (every 2nd column, every 3rd row within each wave); other states use all
+// particles at varied sizes.
+float lookVis(float i, vec2 uv) {
+  // yield bars: back curves dimmer, for depth
+  if (i > 1.5 && i < 2.5) return 1.0 - 0.5 * yieldDate(uv) / (YB_T - 1.0);
+  if (i > 0.5) return 1.0;
+  float rowInWave = floor(inBand(uv) * uGy / 3.0);
+  return (mod(colOf(uv), 2.0) < 0.5 && mod(rowInWave, 3.0) < 0.5) ? 1.0 : 0.0;
+}
+float lookSize(float i, float seed) {
+  return i < 0.5 ? 2.1 : 0.55 + 0.9 * hash(seed * 7.0);
 }
 
 void main() {
@@ -151,15 +205,18 @@ void main() {
   float lift = sin(m * 3.14159265);
   pos += (vec3(hash(aSeed * 17.0), hash(aSeed * 29.0), hash(aSeed * 43.0)) - 0.5) * lift * 0.32;
 
+  float vis = mix(lookVis(uA, aUV), lookVis(uB, aUV), m);
+  float size = mix(lookSize(uA, aSeed), lookSize(uB, aSeed), m);
+
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = uSize * uPixelRatio * (0.55 + 0.9 * hash(aSeed * 7.0)) / -mv.z;
+  gl_PointSize = vis < 0.01 ? 0.0 : uSize * uPixelRatio * size / -mv.z;
 
   // Logo gradient (blue → teal) across the field, the top band lifted toward white.
   float band = bandOf(aUV);
   vec3 base = mix(vec3(0.18, 0.50, 0.72), vec3(0.09, 0.69, 0.63), aUV.x);
   vColor = mix(base, vec3(0.90, 0.94, 0.93), 0.22 + 0.16 * (2.0 - band) / 2.0);
-  vAlpha = uOpacity * (0.55 + 0.45 * hash(aSeed * 3.0));
+  vAlpha = uOpacity * vis * (0.55 + 0.45 * hash(aSeed * 3.0));
 }
 `;
 

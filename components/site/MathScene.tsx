@@ -18,9 +18,9 @@ import { StaticWaves } from "./StaticWaves";
 
 const STATES = 6;
 // Per-state placement, desktop. Index = scene state.
-const OFFSET_X = [0, 1.9, -2.9, -2.9, -2.9, 0];
-const OFFSET_Y = [-1.4, 0, 0.1, -1.35, -0.1, 0.55];
-const OPACITY = [1, 0.95, 0.4, 0.4, 0.4, 1];
+const OFFSET_X = [0, 1.9, -2.6, -2.9, -3.1, 0];
+const OFFSET_Y = [-1.6, 0, -0.35, -1.35, -1.55, 0.55];
+const OPACITY = [1, 0.95, 0.6, 0.4, 0.6, 1];
 const OPACITY_SMALL = [0.85, 0.6, 0.28, 0.28, 0.28, 0.85];
 
 function lerp(a: number, b: number, t: number) {
@@ -127,6 +127,8 @@ export function MathScene() {
       uSize: { value: small ? 30 : 34 },
       uPixelRatio: { value: renderer.getPixelRatio() },
       uOpacity: { value: 1 },
+      uGx: { value: gx },
+      uGy: { value: gy },
     };
     const material = new THREE.ShaderMaterial({
       uniforms,
