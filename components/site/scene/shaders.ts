@@ -235,9 +235,9 @@ float lookSize(float i, float seed) {
   }
   return 0.55 + 0.9 * hash(seed * 7.0);
 }
-// Only the opening waves and the closing Möbius strip react to the cursor.
+// Every scene reacts to the cursor: the dots spread away from it and spring back.
 float lookInteract(float i) {
-  return (i < 0.5 || i > 5.5) ? 1.0 : 0.0;
+  return 1.0;
 }
 
 void main() {

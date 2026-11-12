@@ -314,9 +314,14 @@ export function MathScene() {
       uniforms.uTime.value = time;
 
       const narrow = window.innerWidth < 900;
-      points.scale.setScalar(window.innerWidth < 640 ? 0.72 : 1);
+      // Narrow layouts share the phone composition. OFFSET_Y_NARROW is tuned
+      // for the phone camera (z = 13); scaling by the actual camera distance
+      // keeps the same on-screen placement on tablets (z = 11).
+      points.scale.setScalar(narrow ? 0.72 : 1);
       points.position.x = narrow ? 0 : sample(OFFSET_X, progress);
-      points.position.y = sample(narrow ? OFFSET_Y_NARROW : OFFSET_Y, progress);
+      points.position.y = narrow
+        ? sample(OFFSET_Y_NARROW, progress) * (camera.position.z / 13)
+        : sample(OFFSET_Y, progress);
       uniforms.uOpacity.value = sample(narrow ? OPACITY_SMALL : OPACITY, progress);
 
       const k = reduce ? 1 : 1 - Math.exp(-dt * 2.5);
