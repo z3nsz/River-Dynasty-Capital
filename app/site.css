@@ -7,11 +7,8 @@ body:has(.rdc-site) {
   background: #06080a;
   color-scheme: dark;
 }
-@media (prefers-reduced-motion: no-preference) {
-  html:has(.rdc-site) {
-    scroll-behavior: smooth;
-  }
-}
+/* No CSS smooth scrolling: it fights GSAP's section snapping. In-page nav
+   links scroll smoothly from SiteNav instead. */
 
 .rdc-site {
   --bg: #06080a;

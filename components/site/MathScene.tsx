@@ -184,6 +184,36 @@ export function MathScene() {
           end: "max",
           scrub: reduce ? true : 0.6,
           invalidateOnRefresh: true,
+          // Section snapping. Scrolling stays free; once the user stops, the
+          // page glides to a section's alignment (the same anchors the scene
+          // morphs between, so each scene finishes forming exactly as its
+          // section settles). It snaps from where the page actually stopped
+          // (inertia off: native momentum on touch has already played out,
+          // and a fast flick can't be extrapolated past the page), with a
+          // bias toward the scroll direction: 30% of the way into the next
+          // section is enough to settle there. Off for reduced motion.
+          snap: reduce
+            ? undefined
+            : {
+                snapTo: (value: number, self?: ScrollTrigger) => {
+                  const max = ScrollTrigger.maxScroll(window);
+                  if (anchors.length < 2 || max < 1) return value;
+                  const y = value * max;
+                  let i = 0;
+                  while (i < anchors.length - 2 && y > anchors[i + 1]) i++;
+                  const a = anchors[i];
+                  const b = anchors[i + 1];
+                  if (b - a < 1) return b / max;
+                  const f = (y - a) / (b - a);
+                  const down = (self?.direction ?? 1) > 0;
+                  const toNext = down ? f > 0.3 : f > 0.7;
+                  return (toNext ? b : a) / max;
+                },
+                inertia: false,
+                duration: { min: 0.45, max: 1.1 },
+                delay: 0.12,
+                ease: "power2.inOut",
+              },
         },
       },
     );
