@@ -89,7 +89,7 @@ vec3 lorenz(float seed, float t) {
 // four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess.
 // Drawn straight-on, no 3D; it only drifts gently.
 vec3 chess(float t) {
-  vec3 p = vec3(aChess.xy, 0.0);   // aChess.z is the dot's size, not depth
+  vec3 p = vec3(aChess.xy, 0.0);   // aChess.z marks edge dots, not depth
   p.y += 0.03 * sin(t * 0.5);   // geometry is already centred
   return p;
 }
@@ -221,12 +221,11 @@ float lookVis(float i, vec2 uv) {
 }
 float lookSize(float i, float seed) {
   if (i < 0.5) return 2.1;
-  if (i > 1.5 && i < 2.5) return aChess.z;   // chess: smaller dots along edges
-  return 0.55 + 0.9 * hash(seed * 7.0);
-}
-// How much each dot's brightness varies; the chess silhouettes stay even.
-float lookShimmer(float i) {
-  return (i > 1.5 && i < 2.5) ? 0.5 : 1.0;
+  float s = 0.55 + 0.9 * hash(seed * 7.0);
+  // chess: the same dots as every other scene, a touch smaller in the
+  // tighter band along each edge (aChess.z < 0.7 marks those)
+  if (i > 1.5 && i < 2.5 && aChess.z < 0.7) s *= 0.72;
+  return s;
 }
 // Only the opening waves and the closing Möbius strip react to the cursor.
 float lookInteract(float i) {
@@ -288,8 +287,7 @@ void main() {
   float band = bandOf(aUV);
   vec3 base = mix(vec3(0.18, 0.50, 0.72), vec3(0.09, 0.69, 0.63), aUV.x);
   vColor = mix(base, vec3(0.90, 0.94, 0.93), 0.22 + 0.16 * (2.0 - band) / 2.0);
-  float shimmer = mix(lookShimmer(uA), lookShimmer(uB), m);
-  vAlpha = uOpacity * vis * mix(0.9, 0.55 + 0.45 * hash(aSeed * 3.0), shimmer);
+  vAlpha = uOpacity * vis * (0.55 + 0.45 * hash(aSeed * 3.0));
 }
 `;
 

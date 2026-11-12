@@ -15,6 +15,7 @@
 import { EMBLEM } from "./chessEmblem";
 
 const SCALE = 0.92;
+const DENSITY = 0.55;
 
 /** Each polygon's bounding box, to skip far-away shapes quickly. */
 const BOXES = EMBLEM.map((poly) => {
@@ -124,7 +125,10 @@ export function chessGeometry(count: number): Float32Array {
   const first = emblem(s0);
   const edge = first.filter((d) => d[2] < 0.7).length;
   const body = first.length - edge;
-  const u = (-edge + Math.sqrt(edge * edge + 4 * body * count * 0.99)) / (2 * body);
+  // Only ~55% of the particles get distinct dots, so the spacing matches the
+  // other scenes (the pie chart's, roughly); the rest double up unseen.
+  const target = count * DENSITY;
+  const u = (-edge + Math.sqrt(edge * edge + 4 * body * target)) / (2 * body);
   const pts = emblem(s0 / u);
 
   const cx = (BOUNDS.x0 + BOUNDS.x1) / 2;
