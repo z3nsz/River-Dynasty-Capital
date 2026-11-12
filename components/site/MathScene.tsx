@@ -210,8 +210,8 @@ export function MathScene() {
                   return (toNext ? b : a) / max;
                 },
                 inertia: false,
-                duration: { min: 0.45, max: 1.1 },
-                delay: 0.12,
+                duration: { min: 0.3, max: 0.75 },
+                delay: 0.08,
                 ease: "power2.inOut",
               },
         },
