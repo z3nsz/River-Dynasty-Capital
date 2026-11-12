@@ -88,11 +88,13 @@ vec3 lorenz(float seed, float t) {
 // 2 — strategy: a flat chess emblem (king in front, knight and rook behind,
 // four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess:
 // xy position; z = size factor (+10 on board dots). The whole emblem, board
-// included, bounces slowly as one, so it seems to float.
+// included, bounces slowly as one, so it seems to float, with a small wave
+// rolling through it left to right.
 vec3 chess(float t) {
   vec3 p = vec3(aChess.xy, 0.0);
   float hop = abs(sin(t * 0.75));            // one bounce every ~4 s
   p.y += 0.16 * hop * hop * (3.0 - 2.0 * hop);
+  p.y += 0.035 * sin(t * 1.1 - p.x * 1.2);   // a small wave rolling through
   return p;
 }
 
