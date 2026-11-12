@@ -199,7 +199,7 @@ body:has(.rdc-site) {
   padding: 0 var(--gutter);
 }
 .rdc-strategy-head {
-  min-height: 100svh;
+  min-height: 75svh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -215,12 +215,12 @@ body:has(.rdc-site) {
   max-width: 14ch;
 }
 .rdc-discipline {
-  min-height: 100svh;
+  min-height: 72svh;
   display: grid;
   grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
   gap: clamp(2rem, 5vw, 5rem);
   align-items: center;
-  padding: 6vh 0;
+  padding: 3vh 0;
 }
 .rdc-discipline-text {
   display: flex;

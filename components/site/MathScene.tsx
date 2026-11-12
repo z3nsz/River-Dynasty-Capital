@@ -178,7 +178,7 @@ export function MathScene() {
           const f = span < 1 ? 1 : (y - anchors[i]) / span;
           // Hold the current shape until the next section is well into view,
           // then morph — so no section's object appears before you reach it.
-          return i + smoothstep(0.5, 0.92, f);
+          return i + smoothstep(0.4, 0.88, f);
         }
       }
       return anchors.length - 1;
