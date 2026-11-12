@@ -90,7 +90,7 @@ vec3 lorenz(float seed, float t) {
 // Drawn straight-on, no 3D; it only drifts gently.
 vec3 chess(float t) {
   vec3 p = aChess;
-  p.y -= 0.91 - 0.03 * sin(t * 0.5);
+  p.y += 0.03 * sin(t * 0.5);   // geometry is already centred
   return p;
 }
 
