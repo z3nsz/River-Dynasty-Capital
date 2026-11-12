@@ -5,8 +5,8 @@
  *
  *   0  three waves      — the logo, as travelling sinusoids
  *   1  Lorenz attractor — particles flowing along an RK4-integrated orbit
- *   2  strategy         — a chessboard with a king standing on it
- *   3  growth bars      — a rising bar chart, each bar a solid lattice of dots
+ *   2  strategy         — a flat chess emblem: king, knight and rook on diamonds
+ *   3  fundamentals     — bar chart, pie chart, histogram and area chart, in dots
  *   4  price & EMAs     — the waves resolving into a price path and its averages
  *   5  vol surface      — implied vol over log-moneyness × maturity, skew breathing
  *   6  Möbius strip     — three strips, closing the loop back to the three waves
@@ -85,35 +85,74 @@ vec3 lorenz(float seed, float t) {
   return rotX(rotY(q, t * 0.07), 0.18);
 }
 
-// 2 — strategy: a chessboard with a king, rook, knight and pawn. The geometry
-// is built once on the CPU (chessGeometry.ts) and arrives as aChess.
+// 2 — strategy: a flat chess emblem (king in front, knight and rook behind,
+// four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess.
+// Drawn straight-on, no 3D; it only drifts gently.
 vec3 chess(float t) {
   vec3 p = aChess;
-  p.y -= 1.05;
-  p = rotY(p, -0.62 + 0.18 * sin(t * 0.06));
-  return rotX(p, 0.42);
+  p.y -= 0.91 - 0.03 * sin(t * 0.5);
+  return p;
 }
 
-// 3 — a rising bar chart: twelve bars compounding left to right, each a solid
-// lattice of dots (6 wide × 2 deep), with a gentle wave of growth running through.
-const float GB_N = 12.0;
-vec3 growthBars(vec2 uv, float t) {
+// Point j of a column of n dots, laid on a lattice cols wide.
+// Returns (x, y) as fractions 0–1 of the column's width and height.
+vec2 lattice(float j, float n, float cols) {
+  float rows = max(2.0, ceil(n / cols));
+  return vec2(mod(j, cols) / max(1.0, cols - 1.0), floor(j / cols) / (rows - 1.0));
+}
+
+// 3 — fundamentals: four small charts as one 2×2 composition, each a solid
+// field of dots. Top left a compounding bar chart, top right a pie chart
+// (golden-angle fill, slices exploded, the largest one breathing out),
+// bottom left a histogram (Gaussian bins, the mean drifting), bottom right
+// an area chart (filled to a rising curve, densest along its edge).
+vec3 fundamentals(vec2 uv, float t) {
+  float N = uGx * uGy;
   float idx = rowOf(uv) * uGx + colOf(uv);
-  float bar = mod(idx, GB_N);
-  float k = floor(idx / GB_N);
-  const float cols = 6.0;
-  const float layer = 12.0;               // cols × 2 deep
-  float levels = max(1.0, floor(uGx * uGy / GB_N / layer) - 1.0);
-  float c = mod(k, cols);
-  float dz = mod(floor(k / cols), 2.0);
-  float lvl = min(floor(k / layer) / levels, 1.0);
-  float f = bar / (GB_N - 1.0);
-  float h = (0.35 + 2.25 * pow(f, 1.35)) * (0.92 + 0.08 * sin(t * 0.8 - bar * 0.55));
-  vec3 p = vec3((bar - (GB_N - 1.0) * 0.5) * 0.36 + (c / (cols - 1.0) - 0.5) * 0.22,
-                -1.7 + lvl * h,
-                (dz - 0.5) * 0.1);
-  p = rotY(p, -0.32 + 0.08 * sin(t * 0.07));
-  return rotX(p, 0.12);
+  float q = idx / N;
+  vec3 p;
+  if (q < 0.34) {
+    const float NB = 8.0;
+    float bar = mod(idx, NB);
+    vec2 g = lattice(floor(idx / NB), N * 0.34 / NB, 5.0);
+    float f = bar / (NB - 1.0);
+    float h = (0.25 + 1.15 * pow(f, 1.3)) * (0.93 + 0.07 * sin(t * 0.8 - bar * 0.6));
+    p = vec3(-2.13 + bar * 0.27 + g.x * 0.17, 0.2 + g.y * h, 0.0);
+  } else if (q < 0.6) {
+    float n = N * 0.26;
+    float li = idx - N * 0.34;
+    float r = 0.68 * sqrt((li + 0.5) / n);
+    float fr = fract(li * 0.38196601);            // golden-angle turn, as a fraction
+    float lo = fr < 0.38 ? 0.0 : fr < 0.64 ? 0.38 : fr < 0.85 ? 0.64 : 0.85;
+    float hi = fr < 0.38 ? 0.38 : fr < 0.64 ? 0.64 : fr < 0.85 ? 0.85 : 1.0;
+    float mid = 0.5 * (lo + hi);
+    fr = mid + (fr - mid) * (1.0 - 0.035 / (hi - lo));   // thin gap between slices
+    float spin = t * 0.08;
+    float a = TAU * fr + spin;
+    float am = TAU * mid + spin;
+    float pop = lo < 0.01 ? 0.07 + 0.06 * (0.5 + 0.5 * sin(t * 0.9)) : 0.03;
+    p = vec3(1.25 + r * cos(a) + pop * cos(am), 0.9 + r * sin(a) + pop * sin(am), 0.0);
+  } else if (q < 0.8) {
+    const float NH = 15.0;
+    float li = idx - N * 0.6;
+    float bin = mod(li, NH);
+    vec2 g = lattice(floor(li / NH), N * 0.2 / NH, 3.0);
+    float z = (bin - 7.0) / 3.0 - 0.45 * sin(t * 0.25);
+    float h = 0.08 + 1.2 * exp(-0.5 * z * z) * (0.93 + 0.07 * sin(t * 1.1 + bin));
+    p = vec3(-2.25 + bin * 0.14 + g.x * 0.095, -1.6 + g.y * h, 0.0);
+  } else {
+    const float AC = 40.0;
+    float li = idx - N * 0.8;
+    float c = mod(li, AC);
+    float rows = max(1.0, floor(N * 0.2 / AC) - 1.0);
+    float x = c / (AC - 1.0);
+    float y = 0.35 + 0.55 * x + 0.16 * sin(x * 7.0 + t * 0.5) + 0.07 * sin(x * 15.0 - t * 0.8);
+    float v = pow(min(floor(li / AC) / rows, 1.0), 0.7);
+    p = vec3(0.2 + x * 2.1, -1.6 + v * y, 0.0);
+  }
+  p.z += (hash(aSeed * 17.0) - 0.5) * 0.06;
+  p = rotY(p, -0.22 + 0.06 * sin(t * 0.07));
+  return rotX(p, 0.08);
 }
 
 // 4 — price path (band 0) and two lagging, smoother averages (bands 1, 2).
@@ -165,7 +204,7 @@ vec3 stateAt(float i, vec2 uv, float seed, float t) {
   if (i < 0.5) return waves(uv, t);
   if (i < 1.5) return lorenz(seed, t);
   if (i < 2.5) return chess(t);
-  if (i < 3.5) return growthBars(uv, t);
+  if (i < 3.5) return fundamentals(uv, t);
   if (i < 4.5) return price(uv, t);
   if (i < 5.5) return volSurface(uv, t);
   return mobius(uv, t);
