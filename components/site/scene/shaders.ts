@@ -248,6 +248,7 @@ varying float vAlpha;
 void main() {
   float d = length(gl_PointCoord - 0.5);
   if (d > 0.5) discard;
-  gl_FragColor = vec4(vColor, smoothstep(0.5, 0.12, d) * vAlpha);
+  // Solid disc with a thin anti-aliased rim, so dots read crisp, not as glows.
+  gl_FragColor = vec4(vColor, (1.0 - smoothstep(0.34, 0.5, d)) * vAlpha);
 }
 `;

@@ -74,7 +74,7 @@ export function MathScene() {
       setFallback(true);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.5 : 1.75));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     host.appendChild(renderer.domElement);
     renderer.domElement.style.width = "100%";
