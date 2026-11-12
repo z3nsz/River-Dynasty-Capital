@@ -89,7 +89,7 @@ vec3 lorenz(float seed, float t) {
 // four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess.
 // Drawn straight-on, no 3D; it only drifts gently.
 vec3 chess(float t) {
-  vec3 p = aChess;
+  vec3 p = vec3(aChess.xy, 0.0);   // aChess.z is the dot's size, not depth
   p.y += 0.03 * sin(t * 0.5);   // geometry is already centred
   return p;
 }
@@ -221,12 +221,12 @@ float lookVis(float i, vec2 uv) {
 }
 float lookSize(float i, float seed) {
   if (i < 0.5) return 2.1;
-  if (i > 1.5 && i < 2.5) return 0.95;   // chess: even dots for clean edges
+  if (i > 1.5 && i < 2.5) return aChess.z;   // chess: smaller dots along edges
   return 0.55 + 0.9 * hash(seed * 7.0);
 }
 // How much each dot's brightness varies; the chess silhouettes stay even.
 float lookShimmer(float i) {
-  return (i > 1.5 && i < 2.5) ? 0.0 : 1.0;
+  return (i > 1.5 && i < 2.5) ? 0.5 : 1.0;
 }
 // Only the opening waves and the closing Möbius strip react to the cursor.
 float lookInteract(float i) {
