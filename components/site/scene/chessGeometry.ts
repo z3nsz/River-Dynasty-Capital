@@ -127,8 +127,8 @@ const SMALL = EMBLEM.map((poly) => areaOf(poly) < 0.06);
  *    spaced with only a slight wobble, so every edge (the rook's
  *    battlements, the knight's muzzle) reads crisp;
  *  - tiny shapes filled solid with fine dots so the cross reads as a cross.
- * Edge and fine dots carry a size factor under 0.7, which the shader draws
- * smaller and more even.
+ * The size factor tells the shader which kind each dot is: under 0.45 a
+ * tiny-shape dot, 0.45–0.7 an edge dot, otherwise a body dot.
  */
 function emblem(step: number): Dot[] {
   const { x0, x1, y0, y1 } = BOUNDS;
@@ -186,7 +186,7 @@ function emblem(step: number): Dot[] {
         n++;
         const px = x + (rand(n + 0.3) - 0.5) * fine * 0.3;
         const py = y + (rand(n + 0.7) - 0.5) * fine * 0.3;
-        if (insidePoly(poly, px, py)) out.push([px, py, 0.5 + 0.1 * rand(n)]);
+        if (insidePoly(poly, px, py)) out.push([px, py, 0.3 + 0.1 * rand(n)]);
       }
     }
   });

@@ -225,10 +225,14 @@ float lookVis(float i, vec2 uv) {
 }
 float lookSize(float i, float seed) {
   if (i < 0.5) return 2.1;
-  // chess: the same dots as every other scene, except along edges and in
-  // tiny shapes (size factor under 0.7), where dots are smaller and even so
-  // the silhouettes and the king's cross stay crisp
-  if (i > 1.5 && i < 2.5 && mod(aChess.z, 10.0) < 0.7) return 0.55 + 0.2 * hash(seed * 7.0);
+  // chess: a mix of sizes everywhere, like the pie chart — the full range
+  // inside each piece, a smaller mixed range along edges (factor 0.45–0.7)
+  // and smaller still in the tiny shapes like the king's cross (under 0.45)
+  if (i > 1.5 && i < 2.5) {
+    float k = mod(aChess.z, 10.0);
+    if (k < 0.45) return 0.4 + 0.45 * hash(seed * 7.0);
+    if (k < 0.7) return 0.45 + 0.7 * hash(seed * 7.0);
+  }
   return 0.55 + 0.9 * hash(seed * 7.0);
 }
 // Only the opening waves and the closing Möbius strip react to the cursor.
