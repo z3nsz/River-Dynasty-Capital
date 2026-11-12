@@ -3,15 +3,16 @@ import { LazyMathScene } from "@/components/site/LazyMathScene";
 import { SiteNav } from "@/components/site/SiteNav";
 import { Reveal } from "@/components/site/Reveal";
 import { Logo } from "@/components/Logo";
-import { ValuationChart } from "@/components/site/viz/ValuationChart";
 import { TechnicalChart } from "@/components/site/viz/TechnicalChart";
 import { MonteCarloChart } from "@/components/site/viz/MonteCarloChart";
 import "./site.css";
 
+// Fundamental has no panel: its bar chart is the particle scene itself, which
+// sits in the right-hand column. Quant's panel is drawn without its box.
 const DISCIPLINES = [
-  { n: "01", title: "Fundamental Analysis", scene: 3, Viz: ValuationChart },
-  { n: "02", title: "Technical Analysis", scene: 4, Viz: TechnicalChart },
-  { n: "03", title: "Quantitative Research", scene: 5, Viz: MonteCarloChart },
+  { n: "01", title: "Fundamental Analysis", scene: 3, Viz: null, bare: false },
+  { n: "02", title: "Technical Analysis", scene: 4, Viz: TechnicalChart, bare: false },
+  { n: "03", title: "Quantitative Research", scene: 5, Viz: MonteCarloChart, bare: true },
 ];
 
 export default function Home() {
@@ -42,7 +43,7 @@ export default function Home() {
             <h2>Three disciplines. One approach.</h2>
           </header>
 
-          {DISCIPLINES.map(({ n, title, scene, Viz }) => (
+          {DISCIPLINES.map(({ n, title, scene, Viz, bare }) => (
             <article key={n} className="rdc-discipline" data-scene={scene}>
               <div className="rdc-discipline-text" data-reveal>
                 <h3>
@@ -50,9 +51,13 @@ export default function Home() {
                   {title}
                 </h3>
               </div>
-              <div className="rdc-discipline-viz" data-pop>
-                <Viz />
-              </div>
+              {Viz ? (
+                <div className={bare ? "rdc-discipline-viz is-bare" : "rdc-discipline-viz"} data-pop>
+                  <Viz />
+                </div>
+              ) : (
+                <div aria-hidden="true" />
+              )}
             </article>
           ))}
         </section>

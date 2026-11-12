@@ -310,6 +310,17 @@ body:has(.rdc-site) {
   box-shadow: 0 0 0 1px rgba(47, 191, 173, 0.6);
 }
 
+/* Quant: the chart floats on the page with no box around it. */
+.rdc-discipline-viz.is-bare .rdc-viz {
+  background: transparent;
+  border-color: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+.rdc-site .rdc-discipline-viz.is-bare.is-in .rdc-viz {
+  animation: none;
+}
+
 /* -------------------------------------------------------------- footer */
 .rdc-footer {
   min-height: 100svh;
