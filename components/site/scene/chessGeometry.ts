@@ -59,12 +59,17 @@ const ROOK: V2[] = (() => {
 
 // Knight, facing left: traced from the reference drawing.
 const KNIGHT: V2[] = [
+  // base, then up the back of the neck and the mane
   px(190, 318), px(305, 318), px(305, 306), px(298, 298), px(300, 296),
-  px(305, 255), px(305, 215), px(300, 175), px(288, 145), px(268, 120),
-  px(250, 108), px(240, 116), px(230, 103), px(222, 116), px(218, 138),
-  px(205, 158), px(191, 176), px(186, 190), px(194, 204), px(212, 210),
-  px(230, 220), px(224, 240), px(212, 264), px(208, 296), px(196, 298),
-  px(190, 306),
+  px(305, 255), px(305, 215), px(300, 175), px(288, 145), px(270, 121),
+  px(252, 108), px(242, 112),
+  // ear: a sharp point, then down the forehead and the long face
+  px(232, 96), px(224, 117), px(210, 140), px(197, 162),
+  // muzzle: a pointed tip, the underside, then the small mouth notch
+  px(183, 183), px(196, 187), px(206, 192), px(198, 197),
+  // chin, jaw line, throat, chest
+  px(207, 204), px(226, 206), px(234, 216), px(224, 240), px(212, 264),
+  px(208, 296), px(196, 298), px(190, 306),
 ];
 
 // Board: dark diamonds of a 3×3 board drawn flat, as in the emblem (the far
@@ -121,12 +126,14 @@ function dots(poly: V2[], step: number): V2[] {
     y0 = Math.min(y0, y); y1 = Math.max(y1, y);
   }
   const out: V2[] = [];
+  // Fill dots stay a little back from the edge so the outline reads as one
+  // clean line instead of a ragged fringe.
   for (let y = y0 + step / 2; y < y1; y += step) {
     for (let x = x0 + step / 2; x < x1; x += step) {
-      if (inside(poly, x, y)) out.push([x, y]);
+      if (inside(poly, x, y) && edgeDistance(poly, x, y) > step * 0.5) out.push([x, y]);
     }
   }
-  const s = step * 0.7;
+  const s = step * 0.45;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [ax, ay] = poly[j];
     const [bx, by] = poly[i];

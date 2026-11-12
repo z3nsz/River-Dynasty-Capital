@@ -150,6 +150,7 @@ vec3 fundamentals(vec2 uv, float t) {
     float v = pow(min(floor(li / AC) / rows, 1.0), 0.7);
     p = vec3(0.2 + x * 2.1, -1.6 + v * y, 0.0);
   }
+  p *= 1.25;
   p.z += (hash(aSeed * 17.0) - 0.5) * 0.06;
   p = rotY(p, -0.22 + 0.06 * sin(t * 0.07));
   return rotX(p, 0.08);
@@ -219,7 +220,13 @@ float lookVis(float i, vec2 uv) {
   return (mod(colOf(uv), 2.0) < 0.5 && mod(rowInWave, 3.0) < 0.5) ? 1.0 : 0.0;
 }
 float lookSize(float i, float seed) {
-  return i < 0.5 ? 2.1 : 0.55 + 0.9 * hash(seed * 7.0);
+  if (i < 0.5) return 2.1;
+  if (i > 1.5 && i < 2.5) return 0.95;   // chess: even dots for clean edges
+  return 0.55 + 0.9 * hash(seed * 7.0);
+}
+// How much each dot's brightness varies; the chess silhouettes stay even.
+float lookShimmer(float i) {
+  return (i > 1.5 && i < 2.5) ? 0.0 : 1.0;
 }
 // Only the opening waves and the closing Möbius strip react to the cursor.
 float lookInteract(float i) {
@@ -281,7 +288,8 @@ void main() {
   float band = bandOf(aUV);
   vec3 base = mix(vec3(0.18, 0.50, 0.72), vec3(0.09, 0.69, 0.63), aUV.x);
   vColor = mix(base, vec3(0.90, 0.94, 0.93), 0.22 + 0.16 * (2.0 - band) / 2.0);
-  vAlpha = uOpacity * vis * (0.55 + 0.45 * hash(aSeed * 3.0));
+  float shimmer = mix(lookShimmer(uA), lookShimmer(uB), m);
+  vAlpha = uOpacity * vis * mix(0.9, 0.55 + 0.45 * hash(aSeed * 3.0), shimmer);
 }
 `;
 
