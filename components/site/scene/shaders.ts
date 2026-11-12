@@ -86,11 +86,15 @@ vec3 lorenz(float seed, float t) {
 }
 
 // 2 — strategy: a flat chess emblem (king in front, knight and rook behind,
-// four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess.
-// Drawn straight-on, no 3D; it only drifts gently.
+// four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess:
+// xy position; z = size factor, +10 on board dots. The pieces bounce
+// together in a slow hop (so the gaps around the king stay aligned) while
+// the board stays still.
 vec3 chess(float t) {
-  vec3 p = vec3(aChess.xy, 0.0);   // aChess.z marks edge dots, not depth
-  p.y += 0.03 * sin(t * 0.5);   // geometry is already centred
+  vec3 p = vec3(aChess.xy, 0.0);
+  float board = step(5.0, aChess.z);
+  float hop = abs(sin(t * 0.75));            // one hop every ~4 s
+  p.y += (1.0 - board) * 0.16 * hop * hop * (3.0 - 2.0 * hop);
   return p;
 }
 
@@ -223,8 +227,8 @@ float lookSize(float i, float seed) {
   if (i < 0.5) return 2.1;
   float s = 0.55 + 0.9 * hash(seed * 7.0);
   // chess: the same dots as every other scene, a touch smaller in the
-  // tighter band along each edge (aChess.z < 0.7 marks those)
-  if (i > 1.5 && i < 2.5 && aChess.z < 0.7) s *= 0.72;
+  // tighter band along each edge (a size factor under 0.7 marks those)
+  if (i > 1.5 && i < 2.5 && mod(aChess.z, 10.0) < 0.7) s *= 0.72;
   return s;
 }
 // Only the opening waves and the closing Möbius strip react to the cursor.

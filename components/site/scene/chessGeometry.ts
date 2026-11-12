@@ -9,7 +9,7 @@
  *
  * Computed once on the CPU and passed to the vertex shader as aChess,
  * centred on the origin: x, y position and, in z, the dot's size factor
- * (the emblem is flat, so z carries no depth).
+ * plus 10 on board dots (the emblem is flat, so z carries no depth).
  */
 
 import { EMBLEM } from "./chessEmblem";
@@ -62,6 +62,21 @@ function nearEdge(x: number, y: number, limit: number): boolean {
     }
   }
   return false;
+}
+
+/** The board squares: the only shapes reaching well below the pieces' base. */
+const BOARD = EMBLEM.filter((poly) => Math.min(...poly.map((q) => q[1])) < -0.3);
+
+function onBoard(x: number, y: number): boolean {
+  return BOARD.some((poly) => {
+    let hit = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const [xi, yi] = poly[i];
+      const [xj, yj] = poly[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  });
 }
 
 /** Deterministic pseudo-random in [0, 1). */
@@ -138,7 +153,9 @@ export function chessGeometry(count: number): Float32Array {
     const [x, y, size] = pts[i % pts.length];
     out[i * 3] = (x - cx) * SCALE;
     out[i * 3 + 1] = (y - cy) * SCALE;
-    out[i * 3 + 2] = size; // the shader reads z as this dot's size, not depth
+    // z is not depth (the emblem is flat): it carries the dot's size factor,
+    // plus 10 for board dots, which stay put while the pieces bounce.
+    out[i * 3 + 2] = size + (onBoard(x, y) ? 10 : 0);
   }
   return out;
 }
