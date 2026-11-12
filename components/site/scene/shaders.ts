@@ -225,11 +225,11 @@ float lookVis(float i, vec2 uv) {
 }
 float lookSize(float i, float seed) {
   if (i < 0.5) return 2.1;
-  float s = 0.55 + 0.9 * hash(seed * 7.0);
-  // chess: the same dots as every other scene, a touch smaller in the
-  // tighter band along each edge (a size factor under 0.7 marks those)
-  if (i > 1.5 && i < 2.5 && mod(aChess.z, 10.0) < 0.7) s *= 0.72;
-  return s;
+  // chess: the same dots as every other scene, except along edges and in
+  // tiny shapes (size factor under 0.7), where dots are smaller and even so
+  // the silhouettes and the king's cross stay crisp
+  if (i > 1.5 && i < 2.5 && mod(aChess.z, 10.0) < 0.7) return 0.55 + 0.2 * hash(seed * 7.0);
+  return 0.55 + 0.9 * hash(seed * 7.0);
 }
 // Only the opening waves and the closing Möbius strip react to the cursor.
 float lookInteract(float i) {
