@@ -21,7 +21,7 @@ const STATES = 7;
 // Per-state placement, desktop. Index = scene state.
 // waves, Lorenz, chess, bars, price, vol surface, Möbius
 const OFFSET_X = [0, 1.9, 2.1, -3.0, -2.9, -3.1, 0];
-const OFFSET_Y = [-1.6, 0, 0.55, -1.2, -1.35, -0.7, 0.55];
+const OFFSET_Y = [-1.6, 0, 0.55, -0.75, -1.35, -0.7, 0.55];
 // Below 900px the text is centred over the scene, so the chess set moves up
 // above the Strategy headline instead of sitting behind it.
 const OFFSET_Y_NARROW = [-1.6, 0, 2.2, -1.2, -1.35, -0.7, 0.55];
