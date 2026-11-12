@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { vertexShader, fragmentShader } from "./scene/shaders";
 import { chessGeometry } from "./scene/chessGeometry";
 import { lorenzTrajectory } from "@/lib/site/math";
@@ -31,10 +33,6 @@ const OPACITY_SMALL = [0.85, 0.6, 0.55, 0.28, 0.28, 0.28, 0.85];
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
-}
-function smoothstep(e0: number, e1: number, x: number) {
-  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
-  return t * t * (3 - 2 * t);
 }
 function sample(arr: number[], p: number) {
   const i = Math.min(Math.floor(p), arr.length - 1);
@@ -169,16 +167,38 @@ export function MathScene() {
         anchors.push(Math.max(prev, byState[i] ?? prev));
       }
     };
+    // The scroll position the scene follows. GSAP ScrollTrigger scrubs it
+    // across the whole page (start 0 → end max, no pinning, so no added
+    // spacing or empty ranges): it tracks the real scroll with a short eased
+    // catch-up, so motion is tied to scrolling yet never steps.
+    gsap.registerPlugin(ScrollTrigger);
+    const scrub = { y: window.scrollY };
+    const scrubTween = gsap.fromTo(
+      scrub,
+      { y: 0 },
+      {
+        y: () => ScrollTrigger.maxScroll(window),
+        ease: "none",
+        scrollTrigger: {
+          start: 0,
+          end: "max",
+          scrub: reduce ? true : 0.6,
+          invalidateOnRefresh: true,
+        },
+      },
+    );
+    ScrollTrigger.addEventListener("refresh", measure);
+
     const target = () => {
-      const y = window.scrollY;
+      const y = reduce ? window.scrollY : scrub.y;
       if (!anchors.length || y <= anchors[0]) return 0;
       for (let i = 0; i < anchors.length - 1; i++) {
         if (y < anchors[i + 1]) {
           const span = anchors[i + 1] - anchors[i];
-          const f = span < 1 ? 1 : (y - anchors[i]) / span;
-          // Hold the current shape until the next section is well into view,
-          // then morph — so no section's object appears before you reach it.
-          return i + smoothstep(0.4, 0.88, f);
+          // Linear in scroll: each section's composition sits exactly at its
+          // anchor, and every pixel scrolled away from it moves the dots
+          // toward the next formation. No hold, no delayed start.
+          return i + (span < 1 ? 1 : (y - anchors[i]) / span);
         }
       }
       return anchors.length - 1;
@@ -197,7 +217,9 @@ export function MathScene() {
     };
     resize();
     const ro = new ResizeObserver(() => {
+      // Page height changed: re-measure anchors and the scrub's scroll range.
       measure();
+      ScrollTrigger.refresh();
       if (reduce) requestRender();
     });
     ro.observe(document.body);
@@ -253,8 +275,8 @@ export function MathScene() {
     let lost = false;
 
     const apply = (dt: number) => {
-      const goal = target();
-      progress = reduce ? goal : lerp(progress, goal, 1 - Math.exp(-dt * 3.2));
+      // Smoothing comes from the scrub alone; a second filter here would lag.
+      progress = target();
       const a = Math.min(Math.floor(progress), STATES - 1);
       uniforms.uA.value = a;
       uniforms.uB.value = Math.min(a + 1, STATES - 1);
@@ -322,6 +344,9 @@ export function MathScene() {
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      ScrollTrigger.removeEventListener("refresh", measure);
+      scrubTween.scrollTrigger?.kill();
+      scrubTween.kill();
       window.removeEventListener("resize", resize);
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("scroll", requestRender);

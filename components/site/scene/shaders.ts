@@ -192,7 +192,12 @@ void main() {
   vec3 b = uB == uA ? a : stateAt(uB, aUV, aSeed, uTime);
 
   // Staggered departure so the field flows between states rather than blending.
-  float m = smoothstep(0.0, 1.0, clamp(uMix * 1.45 - aSeed * 0.45, 0.0, 1.0));
+  // Per-dot morph. A light stagger (each dot starts within the first 13% of
+  // the segment) keeps it organic; the half-linear ease has a non-zero slope
+  // at both ends, so dots start moving the instant scrolling starts and
+  // arrive without a snap.
+  float mx = clamp(uMix * 1.15 - aSeed * 0.15, 0.0, 1.0);
+  float m = mix(mx, mx * mx * (3.0 - 2.0 * mx), 0.5);
   vec3 pos = mix(a, b, m);
   float lift = sin(m * 3.14159265);
   pos += (vec3(hash(aSeed * 17.0), hash(aSeed * 29.0), hash(aSeed * 43.0)) - 0.5) * lift * 0.32;
