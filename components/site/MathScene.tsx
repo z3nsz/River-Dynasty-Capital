@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { vertexShader, fragmentShader } from "./scene/shaders";
+import { chessGeometry } from "./scene/chessGeometry";
 import { lorenzTrajectory } from "@/lib/site/math";
 import { StaticWaves } from "./StaticWaves";
 
@@ -19,8 +20,11 @@ import { StaticWaves } from "./StaticWaves";
 const STATES = 7;
 // Per-state placement, desktop. Index = scene state.
 // waves, Lorenz, chess, bars, price, vol surface, Möbius
-const OFFSET_X = [0, 1.9, 2.3, -3.0, -2.9, -3.1, 0];
-const OFFSET_Y = [-1.6, 0, -0.25, -1.2, -1.35, -0.7, 0.55];
+const OFFSET_X = [0, 1.9, 2.1, -3.0, -2.9, -3.1, 0];
+const OFFSET_Y = [-1.6, 0, 0.55, -1.2, -1.35, -0.7, 0.55];
+// Below 900px the text is centred over the scene, so the chess set moves up
+// above the Strategy headline instead of sitting behind it.
+const OFFSET_Y_NARROW = [-1.6, 0, 2.2, -1.2, -1.35, -0.7, 0.55];
 const OPACITY = [1, 0.95, 0.95, 0.65, 0.4, 0.6, 1];
 const TRAIL = 48; // must match #define TRAIL in the shader
 const OPACITY_SMALL = [0.85, 0.6, 0.55, 0.28, 0.28, 0.28, 0.85];
@@ -102,6 +106,7 @@ export function MathScene() {
     geometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geometry.setAttribute("aUV", new THREE.BufferAttribute(uv, 2));
     geometry.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
+    geometry.setAttribute("aChess", new THREE.BufferAttribute(chessGeometry(count), 3));
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 12);
 
     // Lorenz orbit → float texture, sampled in the vertex shader.
@@ -171,7 +176,9 @@ export function MathScene() {
         if (y < anchors[i + 1]) {
           const span = anchors[i + 1] - anchors[i];
           const f = span < 1 ? 1 : (y - anchors[i]) / span;
-          return i + smoothstep(0.18, 0.82, f);
+          // Hold the current shape until the next section is well into view,
+          // then morph — so no section's object appears before you reach it.
+          return i + smoothstep(0.5, 0.92, f);
         }
       }
       return anchors.length - 1;
@@ -257,7 +264,7 @@ export function MathScene() {
       const narrow = window.innerWidth < 900;
       points.scale.setScalar(window.innerWidth < 640 ? 0.72 : 1);
       points.position.x = narrow ? 0 : sample(OFFSET_X, progress);
-      points.position.y = sample(OFFSET_Y, progress);
+      points.position.y = sample(narrow ? OFFSET_Y_NARROW : OFFSET_Y, progress);
       uniforms.uOpacity.value = sample(narrow ? OPACITY_SMALL : OPACITY, progress);
 
       const k = reduce ? 1 : 1 - Math.exp(-dt * 2.5);

@@ -347,6 +347,56 @@ body:has(.rdc-site) {
     opacity: 1;
     transform: none;
   }
+
+  /*
+   * Chart panels pop in once, then stay: the panel rises and scales up with
+   * a slight overshoot, its border flashes teal, the chart draws in from
+   * left to right, and the slider fades in last.
+   */
+  .rdc-site [data-pop] {
+    opacity: 0;
+    transform: translateY(64px) scale(0.9);
+    transform-origin: 50% 85%;
+    filter: blur(6px);
+    transition:
+      opacity 0.6s ease-out,
+      transform 1.1s cubic-bezier(0.18, 1.3, 0.32, 1),
+      filter 0.7s ease-out;
+  }
+  .rdc-site [data-pop].is-in {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .rdc-site [data-pop] .rdc-viz-canvas {
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 1.3s cubic-bezier(0.65, 0, 0.35, 1) 0.3s;
+  }
+  .rdc-site [data-pop].is-in .rdc-viz-canvas {
+    clip-path: inset(0 0 0 0);
+  }
+  .rdc-site [data-pop] .rdc-viz-control {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.6s ease-out 0.9s, transform 0.6s ease-out 0.9s;
+  }
+  .rdc-site [data-pop].is-in .rdc-viz-control {
+    opacity: 1;
+    transform: none;
+  }
+  .rdc-site [data-pop].is-in .rdc-viz {
+    animation: rdc-pop-glow 1.8s ease-out 0.15s both;
+  }
+  @keyframes rdc-pop-glow {
+    0% {
+      border-color: rgba(47, 191, 173, 0.85);
+      box-shadow: 0 0 0 1px rgba(47, 191, 173, 0.35), 0 0 48px rgba(47, 191, 173, 0.22);
+    }
+    100% {
+      border-color: var(--line);
+      box-shadow: 0 0 0 0 rgba(47, 191, 173, 0), 0 0 0 rgba(47, 191, 173, 0);
+    }
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .rdc-scroll-cue {

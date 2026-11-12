@@ -33,6 +33,7 @@ uniform vec4 uTrail[TRAIL];
 
 attribute vec2 aUV;
 attribute float aSeed;
+attribute vec3 aChess;
 
 varying vec3 vColor;
 varying float vAlpha;
@@ -84,57 +85,10 @@ vec3 lorenz(float seed, float t) {
   return rotX(rotY(q, t * 0.07), 0.18);
 }
 
-// 2 — strategy: a chessboard (dots fill the dark squares) with a king on it.
-// The first ~40% of particles form the king as a lathe — stacked rings around
-// a classic profile — plus the cross on top; the rest fill the 32 dark squares
-// as tidy lattices, so the light squares read as empty.
-float kingRadius(float h) {
-  if (h < 0.06) return mix(0.62, 0.58, h / 0.06);
-  if (h < 0.12) return mix(0.58, 0.40, (h - 0.06) / 0.06);
-  if (h < 0.56) return mix(0.36, 0.20, smoothstep(0.12, 0.56, h));
-  if (h < 0.60) return 0.34;
-  if (h < 0.63) return 0.22;
-  if (h < 0.80) return mix(0.24, 0.36, (h - 0.63) / 0.17);
-  return mix(0.36, 0.10, clamp((h - 0.80) / 0.08, 0.0, 1.0));
-}
-vec3 chess(vec2 uv, float t) {
-  float total = uGx * uGy;
-  float idx = rowOf(uv) * uGx + colOf(uv);
-  float np = floor(total * 0.4);
-  const float S = 0.55;               // square size
-  const float H = 2.5;                // king height
-  vec3 p;
-  if (idx < np) {
-    float rings = floor(sqrt(np) * 0.85);
-    float per = floor(np / rings);
-    float ring = floor(idx / per);
-    float j = mod(idx, per);
-    float h = ring / (rings - 1.0);
-    if (h <= 0.88) {
-      float a = TAU * (j + 0.5 * mod(ring, 2.0)) / per;
-      float r = kingRadius(h);
-      p = vec3(r * cos(a), h * H, r * sin(a));
-    } else {
-      // the cross: a vertical bar and a crossbar
-      float q = j / per;
-      p = q < 0.55
-        ? vec3(0.0, mix(0.88, 1.02, q / 0.55) * H, 0.0)
-        : vec3(mix(-0.14, 0.14, (q - 0.55) / 0.45), 0.96 * H, 0.0);
-      p.xz += (vec2(hash(idx * 3.1), hash(idx * 7.7)) - 0.5) * 0.05;
-    }
-    p.xz += vec2(0.5, -0.5) * S;      // stands on the e4 square
-  } else {
-    float bi = idx - np;
-    float perSq = floor((total - np) / 32.0);
-    float sq = min(floor(bi / perSq), 31.0);
-    float local = mod(bi, perSq);
-    float L = floor(sqrt(perSq));
-    float lx = mod(local, L);
-    float ly = min(floor(local / L), L - 1.0);
-    float row = floor(sq / 4.0);
-    float col = mod(sq, 4.0) * 2.0 + mod(row, 2.0);
-    p = vec3((col + (lx + 0.5) / L - 4.0) * S, 0.0, (row + (ly + 0.5) / L - 4.0) * S);
-  }
+// 2 — strategy: a chessboard with a king, rook, knight and pawn. The geometry
+// is built once on the CPU (chessGeometry.ts) and arrives as aChess.
+vec3 chess(float t) {
+  vec3 p = aChess;
   p.y -= 1.05;
   p = rotY(p, -0.62 + 0.18 * sin(t * 0.06));
   return rotX(p, 0.42);
@@ -210,7 +164,7 @@ vec3 mobius(vec2 uv, float t) {
 vec3 stateAt(float i, vec2 uv, float seed, float t) {
   if (i < 0.5) return waves(uv, t);
   if (i < 1.5) return lorenz(seed, t);
-  if (i < 2.5) return chess(uv, t);
+  if (i < 2.5) return chess(t);
   if (i < 3.5) return growthBars(uv, t);
   if (i < 4.5) return price(uv, t);
   if (i < 5.5) return volSurface(uv, t);

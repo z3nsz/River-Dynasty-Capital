@@ -50,7 +50,7 @@ export default function Home() {
                   {title}
                 </h3>
               </div>
-              <div className="rdc-discipline-viz" data-reveal>
+              <div className="rdc-discipline-viz" data-pop>
                 <Viz />
               </div>
             </article>
