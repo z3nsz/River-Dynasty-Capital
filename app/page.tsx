@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { LazyMathScene } from "@/components/site/LazyMathScene";
-import { SiteNav } from "@/components/site/SiteNav";
+import { LoginLink, SectionLink, SiteNav } from "@/components/site/SiteNav";
+import { SceneHud } from "@/components/site/SceneHud";
 import { Reveal } from "@/components/site/Reveal";
 import { Logo } from "@/components/Logo";
 import { Words } from "@/components/site/Words";
@@ -20,8 +20,11 @@ export default function Home() {
   return (
     <div className="rdc-site" id="top">
       <LazyMathScene />
+      {/* depth: a soft vignette and fine grain between the scene and the text */}
+      <div className="rdc-atmos" aria-hidden="true" />
       <Reveal />
       <SiteNav />
+      <SceneHud />
 
       <main>
         <section className="rdc-hero" data-scene="0">
@@ -35,12 +38,15 @@ export default function Home() {
               ))}
             />
           </h1>
-          <div className="rdc-scroll-cue" aria-hidden="true" />
+          <div className="rdc-scroll-cue" aria-hidden="true">
+            <span>Scroll</span>
+            <i />
+          </div>
         </section>
 
         <section id="firm" className="rdc-firm" data-scene="1">
           <div className="rdc-firm-text" data-reveal>
-            <p className="rdc-eyebrow">The Firm</p>
+            <p className="rdc-eyebrow rdc-kicker">The Firm</p>
             <p className="rdc-firm-line">
               <Words text="An independent proprietary investment and trading operation." />
             </p>
@@ -52,7 +58,7 @@ export default function Home() {
             {/* the reveal watches the text itself: the header is nearly a
                 screen tall, so it would fire while the heading is still below */}
             <div className="rdc-strategy-head-text" data-reveal>
-              <p className="rdc-eyebrow">Strategy</p>
+              <p className="rdc-eyebrow rdc-kicker">Strategy</p>
               <h2>
                 <Words text="Three disciplines. One approach." />
               </h2>
@@ -62,8 +68,10 @@ export default function Home() {
           {DISCIPLINES.map(({ n, title, scene, Viz, bare }) => (
             <article key={n} className="rdc-discipline" data-scene={scene}>
               <div className="rdc-discipline-text" data-reveal>
+                <p className="rdc-eyebrow rdc-kicker rdc-discipline-n">
+                  {n} <span>/ 03</span>
+                </p>
                 <h3>
-                  <span className="rdc-discipline-n">{n} /</span>
                   <Words text={title} />
                 </h3>
               </div>
@@ -85,7 +93,12 @@ export default function Home() {
             <Logo size={28} className="rdc-nav-logo" />
             <span>River Dynasty Capital</span>
           </div>
-          <Link href="/portfolio" className="rdc-nav-login">Investor Login</Link>
+          <nav aria-label="Footer" className="rdc-footer-links">
+            <SectionLink id="firm" className="rdc-nav-link">Firm</SectionLink>
+            <SectionLink id="strategy" className="rdc-nav-link">Strategy</SectionLink>
+            <SectionLink id="top" className="rdc-nav-link">Back to top ↑</SectionLink>
+          </nav>
+          <LoginLink />
         </div>
         <p className="rdc-footer-legal">
           © {new Date().getFullYear()} River Dynasty Capital. Not investment advice and not an offer of any fund or
