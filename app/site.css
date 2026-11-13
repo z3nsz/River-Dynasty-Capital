@@ -705,13 +705,26 @@ html[data-rdc-section="close"] .rdc-caption {
   .rdc-footer-links {
     display: none;
   }
+  /*
+   * One text line for every section: when a section is snapped (centred),
+   * its text starts 26% down the screen, with the figure below it. Each
+   * padding is 26svh minus the gap above the section once centred:
+   * (100svh − section height) / 2.
+   */
   .rdc-discipline {
     grid-template-columns: minmax(0, 1fr);
-    align-content: center;
+    align-content: start;
     gap: 1.75rem;
+    padding: 20svh 0 0;          /* 88svh tall → 6svh above */
   }
   .rdc-firm {
     min-height: 100svh;
+    align-items: flex-start;
+    padding-top: 26svh;          /* 100svh tall → none above */
+  }
+  .rdc-strategy-head {
+    justify-content: flex-start;
+    padding-top: 21svh;          /* 90svh tall → 5svh above */
   }
 }
 @media (max-width: 640px) {

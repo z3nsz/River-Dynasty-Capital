@@ -26,12 +26,12 @@ const STATES = 7;
 // chart, so the live chart and the particle scene never cross.
 const OFFSET_X = [0, 1.9, 2.4, 2.2, -1.2, -3.4, 0];
 const OFFSET_Y = [-1.6, 0, 0.0, 0, -2.4, -1.8, 0.55];
-// Below 900px the text is centred over the scene, so the chess set moves up
-// above the Strategy headline instead of sitting behind it.
-const OFFSET_Y_NARROW = [-1.6, 0, 1.95, -2.3, -3.25, -3.05, 0.55];
+// Below 900px every section's text sits at the same height near the top
+// (see site.css), and each figure sits below it.
+const OFFSET_Y_NARROW = [-1.6, -2.2, -2.2, -1.3, -3.25, -3.05, 0.55];
 const OPACITY = [1, 0.95, 0.95, 0.95, 0.4, 0.6, 1];
 const TRAIL = 48; // must match #define TRAIL in the shader
-const OPACITY_SMALL = [0.85, 0.6, 0.55, 0.7, 0.28, 0.28, 0.85];
+const OPACITY_SMALL = [0.85, 0.8, 0.8, 0.8, 0.28, 0.28, 0.85];
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
