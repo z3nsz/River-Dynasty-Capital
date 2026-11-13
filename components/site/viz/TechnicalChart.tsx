@@ -5,11 +5,13 @@ import { useCanvasLoop, C } from "./useCanvasLoop";
 import { emaAlpha, emaStep, gaussian, mulberry32 } from "@/lib/site/math";
 
 /**
- * Technical Analysis — a live market.
+ * Technical Analysis — a live market, in candlesticks.
  *
- * A regime-switching price process streams in continuously. Between bars the
- * chart slides by a fraction of a bar every frame and the newest segment grows
- * toward the next value, so motion is fluid rather than stepped. EMA(12),
+ * A regime-switching price process streams in continuously, one tick per
+ * BAR seconds; every TICKS ticks make one candle (open = the previous close,
+ * high/low over the ticks, close = the last tick). The newest candle forms
+ * live, and the chart slides by a fraction of a tick every frame, so motion
+ * is fluid rather than stepped. EMA(12),
  * EMA(26) and the MACD histogram are updated incrementally. Market structure
  * is drawn as the last confirmed swing high/low; a level is retired once
  * price closes through it.
@@ -18,6 +20,7 @@ import { emaAlpha, emaStep, gaussian, mulberry32 } from "@/lib/site/math";
 const N = 190;
 const BAR = 0.11; // seconds per bar
 const SWING = 6; // bars each side to confirm a swing point
+const TICKS = 5; // ticks per candle
 const aFast = emaAlpha(12);
 const aSlow = emaAlpha(26);
 const aSig = emaAlpha(9);
@@ -33,6 +36,7 @@ export function TechnicalChart() {
   const st = useRef<{
     rand: () => number;
     bars: Bar[];
+    count: number; // ticks so far, so candle boundaries stay fixed as the window slides
     next: number;
     drift: number;
     noise: number;
@@ -61,6 +65,7 @@ export function TechnicalChart() {
     s.sig = emaStep(s.sig, macd, aSig);
     s.bars.push({ p, fast, slow, hist: macd - s.sig });
     s.bars.shift();
+    s.count++;
 
     // confirm a swing at bars[len-1-SWING]
     const c = s.bars.length - 1 - SWING;
@@ -89,6 +94,7 @@ export function TechnicalChart() {
       st.current = {
         rand,
         bars: Array.from({ length: N }, () => ({ ...seed })),
+        count: 0,
         next: 100,
         drift: 0.06,
         noise: 0,
@@ -188,18 +194,39 @@ export function TechnicalChart() {
     }
     ctx.setLineDash([]);
 
-    // area under price
-    const grad = ctx.createLinearGradient(0, padT, 0, priceB);
-    grad.addColorStop(0, "rgba(232,237,235,0.07)");
-    grad.addColorStop(1, "rgba(232,237,235,0)");
-    ctx.beginPath();
-    ctx.moveTo(x(0), priceB);
-    for (let i = 0; i < N; i++) ctx.lineTo(x(i), y(s.bars[i].p));
-    ctx.lineTo(x(N - 1) + dx * phase, y(tipP));
-    ctx.lineTo(x(N - 1) + dx * phase, priceB);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
+    // candles: group ticks by absolute index so boundaries don't drift
+    const up = "rgba(47,191,173,0.95)";
+    const down = "rgba(201,128,111,0.9)";
+    const first = s.count - N; // absolute index of bars[0]
+    let i0 = 0;
+    while (i0 < N) {
+      const g = Math.floor((first + i0) / TICKS);
+      let i1 = i0;
+      while (i1 + 1 < N && Math.floor((first + i1 + 1) / TICKS) === g) i1++;
+      const forming = i1 === N - 1;
+      const open = i0 > 0 ? s.bars[i0 - 1].p : s.bars[i0].p;
+      const close = forming ? tipP : s.bars[i1].p;
+      let hiP = Math.max(open, close);
+      let loP = Math.min(open, close);
+      for (let i = i0; i <= i1; i++) {
+        hiP = Math.max(hiP, s.bars[i].p);
+        loP = Math.min(loP, s.bars[i].p);
+      }
+      // centre on the candle's full slot, so a forming candle doesn't jump
+      const cx = (x(g * TICKS - first) + x(g * TICKS - first + TICKS - 1)) / 2;
+      const bw = Math.max(2, TICKS * dx * 0.62);
+      const col = close >= open ? up : down;
+      ctx.strokeStyle = col;
+      ctx.fillStyle = col;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(cx) + 0.5, y(hiP));
+      ctx.lineTo(Math.round(cx) + 0.5, y(loP));
+      ctx.stroke();
+      const top = y(Math.max(open, close));
+      ctx.fillRect(cx - bw / 2, top, bw, Math.max(1, y(Math.min(open, close)) - top));
+      i0 = i1 + 1;
+    }
 
     const line = (get: (b: Bar) => number, color: string, width: number) => {
       ctx.strokeStyle = color;
@@ -215,15 +242,16 @@ export function TechnicalChart() {
       ctx.stroke();
     };
     line((b) => b.slow, C.blue, 1.25);
-    line((b) => b.fast, C.teal, 1.25);
-    line((b) => b.p, C.ink, 1.5);
-    // live segment
-    ctx.strokeStyle = C.ink;
-    ctx.lineWidth = 1.5;
+    line((b) => b.fast, C.ink, 1.1);
+
+    // last price: a faint dashed line across to its tag
+    ctx.setLineDash([2, 3]);
+    ctx.strokeStyle = "rgba(232,237,235,0.35)";
     ctx.beginPath();
-    ctx.moveTo(x(N - 1), y(lastBar.p));
-    ctx.lineTo(x(N - 1) + dx * phase, y(tipP));
+    ctx.moveTo(0, y(tipP));
+    ctx.lineTo(plotR, y(tipP));
     ctx.stroke();
+    ctx.setLineDash([]);
 
     // momentum histogram (MACD − signal)
     for (let i = 0; i < N; i++) {
@@ -234,11 +262,8 @@ export function TechnicalChart() {
     }
     ctx.restore();
 
-    // tip dot + price tag
+    // price tag
     ctx.fillStyle = C.ink;
-    ctx.beginPath();
-    ctx.arc(x(N - 1) + dx * phase, y(tipP), 2.6, 0, Math.PI * 2);
-    ctx.fill();
     ctx.font = `10px ${mono}`;
     ctx.textBaseline = "middle";
     ctx.fillText(tipP.toFixed(2), plotR + 8, y(tipP));
@@ -248,13 +273,20 @@ export function TechnicalChart() {
     ctx.font = `11px ${mono}`;
     let lx = 0;
     for (const [label, color] of [
-      ["Price", C.ink],
-      ["EMA 12", C.teal],
+      ["Candles", ""],
+      ["EMA 12", C.ink],
       ["EMA 26", C.blue],
       ["MACD", C.muted],
     ] as const) {
-      ctx.fillStyle = color;
-      ctx.fillRect(lx, 9, 10, 2);
+      if (label === "Candles") {
+        ctx.fillStyle = up;
+        ctx.fillRect(lx, 6, 4, 8);
+        ctx.fillStyle = down;
+        ctx.fillRect(lx + 6, 8, 4, 6);
+      } else {
+        ctx.fillStyle = color;
+        ctx.fillRect(lx, 9, 10, 2);
+      }
       ctx.fillStyle = C.muted;
       ctx.fillText(label, lx + 15, 14);
       lx += ctx.measureText(label).width + 34;
@@ -267,7 +299,7 @@ export function TechnicalChart() {
         ref={canvasRef}
         className="rdc-viz-canvas"
         role="img"
-        aria-label="Illustrative live price chart with 12- and 26-period exponential moving averages, MACD momentum histogram and swing-level market structure."
+        aria-label="Illustrative live candlestick chart with 12- and 26-period exponential moving averages, MACD momentum histogram and swing-level market structure."
       />
     </div>
   );
