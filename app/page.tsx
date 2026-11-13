@@ -3,6 +3,7 @@ import { LazyMathScene } from "@/components/site/LazyMathScene";
 import { SiteNav } from "@/components/site/SiteNav";
 import { Reveal } from "@/components/site/Reveal";
 import { Logo } from "@/components/Logo";
+import { Words } from "@/components/site/Words";
 import { TechnicalChart } from "@/components/site/viz/TechnicalChart";
 import { MonteCarloChart } from "@/components/site/viz/MonteCarloChart";
 import "./site.css";
@@ -11,7 +12,7 @@ import "./site.css";
 // sits in the right-hand column. Quant's panel is drawn without its box.
 const DISCIPLINES = [
   { n: "01", title: "Fundamental Analysis", scene: 3, Viz: null, bare: false },
-  { n: "02", title: "Technical Analysis", scene: 4, Viz: TechnicalChart, bare: false },
+  { n: "02", title: "Technical Analysis", scene: 4, Viz: TechnicalChart, bare: true },
   { n: "03", title: "Quantitative Research", scene: 5, Viz: MonteCarloChart, bare: true },
 ];
 
@@ -25,7 +26,14 @@ export default function Home() {
       <main>
         <section className="rdc-hero" data-scene="0">
           <h1 className="rdc-hero-title">
-            Research<span>.</span> Trade<span>.</span> Invest<span>.</span>
+            <Words
+              words={["Research", "Trade", "Invest"].map((w) => (
+                <>
+                  {w}
+                  <span className="rdc-dot">.</span>
+                </>
+              ))}
+            />
           </h1>
           <div className="rdc-scroll-cue" aria-hidden="true" />
         </section>
@@ -33,14 +41,22 @@ export default function Home() {
         <section id="firm" className="rdc-firm" data-scene="1">
           <div className="rdc-firm-text" data-reveal>
             <p className="rdc-eyebrow">The Firm</p>
-            <p className="rdc-firm-line">An independent proprietary investment and trading operation.</p>
+            <p className="rdc-firm-line">
+              <Words text="An independent proprietary investment and trading operation." />
+            </p>
           </div>
         </section>
 
         <section id="strategy" className="rdc-strategy">
-          <header className="rdc-strategy-head" data-reveal data-scene="2">
-            <p className="rdc-eyebrow">Strategy</p>
-            <h2>Three disciplines. One approach.</h2>
+          <header className="rdc-strategy-head" data-scene="2">
+            {/* the reveal watches the text itself: the header is nearly a
+                screen tall, so it would fire while the heading is still below */}
+            <div className="rdc-strategy-head-text" data-reveal>
+              <p className="rdc-eyebrow">Strategy</p>
+              <h2>
+                <Words text="Three disciplines. One approach." />
+              </h2>
+            </div>
           </header>
 
           {DISCIPLINES.map(({ n, title, scene, Viz, bare }) => (
@@ -48,7 +64,7 @@ export default function Home() {
               <div className="rdc-discipline-text" data-reveal>
                 <h3>
                   <span className="rdc-discipline-n">{n} /</span>
-                  {title}
+                  <Words text={title} />
                 </h3>
               </div>
               {Viz ? (

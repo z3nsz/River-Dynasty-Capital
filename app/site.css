@@ -148,8 +148,22 @@ body:has(.rdc-site) {
   text-wrap: balance;
   max-width: 11ch;
 }
-.rdc-hero-title span {
+.rdc-hero-title .rdc-dot {
+  display: inline-block;
   color: var(--teal);
+}
+
+/* word reveal: each word sits in a clipping box and rises into it */
+.rdc-w {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  /* room for descenders, given back so line spacing is unchanged */
+  padding-bottom: 0.14em;
+  margin-bottom: -0.14em;
+}
+.rdc-w > span {
+  display: inline-block;
 }
 .rdc-scroll-cue {
   position: absolute;
@@ -200,6 +214,10 @@ body:has(.rdc-site) {
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+.rdc-strategy-head-text {
+  display: flex;
+  flex-direction: column;
   gap: 1.25rem;
 }
 .rdc-strategy-head h2 {
@@ -354,6 +372,54 @@ body:has(.rdc-site) {
   .rdc-site [data-reveal].is-in {
     opacity: 1;
     transform: none;
+  }
+
+  /* headings: words rise one after another, tilting upright as they come */
+  .rdc-site [data-reveal] .rdc-w > span {
+    opacity: 0;
+    transform: translateY(105%) rotate(5deg);
+    transform-origin: 0 100%;
+    transition:
+      transform 1.05s cubic-bezier(0.2, 0.75, 0.1, 1) calc(var(--i) * var(--step, 85ms) + 120ms),
+      opacity 0.8s ease calc(var(--i) * var(--step, 85ms) + 120ms);
+  }
+  .rdc-site [data-reveal].is-in .rdc-w > span {
+    opacity: 1;
+    transform: none;
+  }
+  .rdc-firm-line {
+    --step: 45ms;
+  }
+
+  /* the hero plays on load: words rise, then each teal full stop drops in */
+  .rdc-hero-title .rdc-w > span {
+    animation: rdc-word-in 1.15s cubic-bezier(0.2, 0.75, 0.1, 1) both;
+    animation-delay: calc(var(--i) * 150ms + 250ms);
+    transform-origin: 0 100%;
+  }
+  .rdc-hero-title .rdc-dot {
+    animation: rdc-dot-in 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+    animation-delay: calc(var(--i) * 150ms + 900ms);
+  }
+  @keyframes rdc-word-in {
+    from {
+      opacity: 0;
+      transform: translateY(105%) rotate(5deg);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes rdc-dot-in {
+    from {
+      opacity: 0;
+      transform: translateY(-0.6em) scale(0.3);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   /*

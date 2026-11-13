@@ -5,7 +5,7 @@
  *
  *   0  three waves      — the logo, as travelling sinusoids
  *   1  Lorenz attractor — particles flowing along an RK4-integrated orbit
- *   2  strategy         — a flat chess emblem: king, knight and rook on diamonds
+ *   2  strategy         — the chess trio in halftone dots: knight, king and rook
  *   3  fundamentals     — bar chart, pie chart, histogram and area chart, in dots
  *   4  price & EMAs     — the waves resolving into a price path and its averages
  *   5  vol surface      — implied vol over log-moneyness × maturity, skew breathing
@@ -33,7 +33,7 @@ uniform vec4 uTrail[TRAIL];
 
 attribute vec2 aUV;
 attribute float aSeed;
-attribute vec3 aChess;
+attribute vec4 aChess;
 
 varying vec3 vColor;
 varying float vAlpha;
@@ -85,17 +85,18 @@ vec3 lorenz(float seed, float t) {
   return rotX(rotY(q, t * 0.07), 0.18);
 }
 
-// 2 — strategy: a flat chess emblem (king in front, knight and rook behind,
-// four dark diamonds). Built once on the CPU (chessGeometry.ts) as aChess:
-// xy position; z = size factor (+10 on board dots). The whole emblem, board
-// included, bounces slowly as one, so it seems to float, with a small wave
-// rolling through it left to right.
+// 2 — strategy: the chess trio (knight, king, rook) in halftone dots, taken
+// from the reference icon. Built once on the CPU (chessGeometry.ts) as
+// aChess: xyz position; w packs each dot's brightness and size. It bounces
+// slowly and floats, a small wave rolls through it, and it turns gently so
+// the king standing in front of the others, and the pieces' thickness, show.
 vec3 chess(float t) {
-  vec3 p = vec3(aChess.xy, 0.0);
+  vec3 p = aChess.xyz;
   float hop = abs(sin(t * 0.75));            // one bounce every ~4 s
   p.y += 0.16 * hop * hop * (3.0 - 2.0 * hop);
   p.y += 0.035 * sin(t * 1.1 - p.x * 1.2);   // a small wave rolling through
-  return p;
+  p = rotY(p, 0.26 * sin(t * 0.3));          // turn side to side, ~21 s
+  return rotX(p, 0.06);
 }
 
 // Point j of a column of n dots, laid on a lattice cols wide.
@@ -225,15 +226,16 @@ float lookVis(float i, vec2 uv) {
 }
 float lookSize(float i, float seed) {
   if (i < 0.5) return 2.1;
-  // chess: a mix of sizes everywhere, like the pie chart — the full range
-  // inside each piece, a smaller mixed range along edges (factor 0.45–0.7)
-  // and smaller still in the tiny shapes like the king's cross (under 0.45)
-  if (i > 1.5 && i < 2.5) {
-    float k = mod(aChess.z, 10.0);
-    if (k < 0.45) return 0.4 + 0.45 * hash(seed * 7.0);
-    if (k < 0.7) return 0.45 + 0.7 * hash(seed * 7.0);
-  }
+  // chess: each dot keeps the reference's size — small on the edges, large
+  // inside — with a touch of variation
+  if (i > 1.5 && i < 2.5) return fract(aChess.w) * 2.0 * (0.92 + 0.16 * hash(seed * 7.0));
   return 0.55 + 0.9 * hash(seed * 7.0);
+}
+// Brightness: random per dot, except the chess, which keeps the reference's
+// shading (heavier ink reads brighter on the dark page).
+float lookShade(float i, float seed) {
+  if (i > 1.5 && i < 2.5) return floor(aChess.w) / 100.0;
+  return 0.55 + 0.45 * hash(seed * 3.0);
 }
 // Every scene reacts to the cursor: the dots spread away from it and spring back.
 float lookInteract(float i) {
@@ -295,7 +297,7 @@ void main() {
   float band = bandOf(aUV);
   vec3 base = mix(vec3(0.18, 0.50, 0.72), vec3(0.09, 0.69, 0.63), aUV.x);
   vColor = mix(base, vec3(0.90, 0.94, 0.93), 0.22 + 0.16 * (2.0 - band) / 2.0);
-  vAlpha = uOpacity * vis * (0.55 + 0.45 * hash(aSeed * 3.0));
+  vAlpha = uOpacity * vis * mix(lookShade(uA, aSeed), lookShade(uB, aSeed), m);
 }
 `;
 

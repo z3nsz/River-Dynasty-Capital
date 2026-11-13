@@ -26,7 +26,7 @@ const OFFSET_X = [0, 1.9, 2.4, 2.2, -2.9, -3.1, 0];
 const OFFSET_Y = [-1.6, 0, 0.0, 0, -1.35, -0.7, 0.55];
 // Below 900px the text is centred over the scene, so the chess set moves up
 // above the Strategy headline instead of sitting behind it.
-const OFFSET_Y_NARROW = [-1.6, 0, 2.2, -2.3, -1.35, -0.7, 0.55];
+const OFFSET_Y_NARROW = [-1.6, 0, 1.95, -2.3, -1.35, -0.7, 0.55];
 const OPACITY = [1, 0.95, 0.95, 0.95, 0.4, 0.6, 1];
 const TRAIL = 48; // must match #define TRAIL in the shader
 const OPACITY_SMALL = [0.85, 0.6, 0.55, 0.7, 0.28, 0.28, 0.85];
@@ -104,7 +104,7 @@ export function MathScene() {
     geometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geometry.setAttribute("aUV", new THREE.BufferAttribute(uv, 2));
     geometry.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
-    geometry.setAttribute("aChess", new THREE.BufferAttribute(chessGeometry(count), 3));
+    geometry.setAttribute("aChess", new THREE.BufferAttribute(chessGeometry(count), 4));
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 12);
 
     // Lorenz orbit → float texture, sampled in the vertex shader.
