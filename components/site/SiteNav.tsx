@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { anchorFor, scrollToAnchor } from "./scrollTo";
-import { magnetic } from "./motion";
 
 /**
  * An in-page link that glides to the same position the section snap settles
@@ -35,15 +34,10 @@ export function SectionLink({
   );
 }
 
-/**
- * Investor Login: the one call to action. It leans toward a nearby cursor
- * (magnetic) and its arrow moves forward on hover.
- */
+/** Investor Login: the one call to action. It stays put; its arrow moves forward on hover. */
 export function LoginLink() {
-  const ref = useRef<HTMLAnchorElement>(null);
-  useEffect(() => (ref.current ? magnetic(ref.current) : undefined), []);
   return (
-    <Link ref={ref} href="/portfolio" className="rdc-nav-login">
+    <Link href="/portfolio" className="rdc-nav-login">
       <span>Investor Login</span>
       <span className="rdc-arrow" aria-hidden="true">→</span>
     </Link>
