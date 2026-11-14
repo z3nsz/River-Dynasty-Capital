@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { scrollToAnchor } from "./scrollTo";
+import { scrambleText } from "./motion";
 
 /**
  * Orientation for the scroll journey, kept quiet:
@@ -26,6 +27,13 @@ const SCENES = [
 export function SceneHud() {
   const [active, setActive] = useState(0);
   const anchors = useRef<HTMLElement[]>([]);
+  const captions = useRef<(HTMLSpanElement | null)[]>([]);
+
+  // The caption resolves like a readout each time the figure changes.
+  useEffect(() => {
+    const el = captions.current[active];
+    return el ? scrambleText(el, 600) : undefined;
+  }, [active]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -98,7 +106,14 @@ export function SceneHud() {
         {SCENES.map((s, i) => (
           <p key={i} className={i === active ? "is-on" : undefined}>
             <span className="rdc-caption-n">Fig. {String(i + 1).padStart(2, "0")}</span>
-            <span className="rdc-caption-t">{s.fig}</span>
+            <span
+              className="rdc-caption-t"
+              ref={(el) => {
+                captions.current[i] = el;
+              }}
+            >
+              {s.fig}
+            </span>
             <span className="rdc-caption-m">{s.math}</span>
           </p>
         ))}

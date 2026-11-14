@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { vertexShader, fragmentShader } from "./scene/shaders";
+import { vertexShader, fragmentShader, dustVertexShader, dustFragmentShader } from "./scene/shaders";
 import { chessGeometry } from "./scene/chessGeometry";
 import { lorenzTrajectory } from "@/lib/site/math";
 import { StaticWaves } from "./StaticWaves";
@@ -137,6 +137,9 @@ export function MathScene() {
       uGx: { value: gx },
       uGy: { value: gy },
       uAspect: { value: 1 },
+      uVel: { value: 0 },
+      uIntro: { value: 1 },
+      uCamZ: { value: 9 },
       uTrail: { value: Array.from({ length: TRAIL }, () => new THREE.Vector4(9, 9, 99, 0)) },
     };
     const material = new THREE.ShaderMaterial({
@@ -149,6 +152,39 @@ export function MathScene() {
     const points = new THREE.Points(geometry, material);
     points.frustumCulled = false;
     scene.add(points);
+
+    // --- dust: sparse motes through the depth of the scene ----------------
+    const DUST = small || lowPower ? 110 : 220;
+    const dustPos = new Float32Array(DUST * 3);
+    const dustSeed = new Float32Array(DUST);
+    for (let i = 0; i < DUST; i++) {
+      s = (s * 16807) % 2147483647;
+      dustPos[i * 3] = (s / 2147483647 - 0.5) * 26;
+      s = (s * 16807) % 2147483647;
+      dustPos[i * 3 + 1] = (s / 2147483647 - 0.5) * 16;
+      s = (s * 16807) % 2147483647;
+      dustPos[i * 3 + 2] = (s / 2147483647 - 0.5) * 12;
+      s = (s * 16807) % 2147483647;
+      dustSeed[i] = s / 2147483647;
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+    dustGeometry.setAttribute("aSeed", new THREE.BufferAttribute(dustSeed, 1));
+    const dustUniforms = {
+      uTime: { value: 0 },
+      uScroll: { value: 0 },
+      uPixelRatio: { value: renderer.getPixelRatio() },
+    };
+    const dustMaterial = new THREE.ShaderMaterial({
+      uniforms: dustUniforms,
+      vertexShader: dustVertexShader,
+      fragmentShader: dustFragmentShader,
+      transparent: true,
+      depthWrite: false,
+    });
+    const dust = new THREE.Points(dustGeometry, dustMaterial);
+    dust.frustumCulled = false;
+    scene.add(dust);
 
     // --- scroll anchors: the scroll position at which each state is centred --
     let anchors: number[] = [];
@@ -237,13 +273,15 @@ export function MathScene() {
     };
 
     // --- sizing -----------------------------------------------------------
+    let baseZ = 9; // the camera's resting distance for this viewport
     const resize = () => {
       const w = host.clientWidth;
       const h = host.clientHeight;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
       // Keep the composition similar on narrow screens by pulling back.
-      camera.position.z = w < 640 ? 13 : w < 900 ? 11 : 9;
+      baseZ = w < 640 ? 13 : w < 900 ? 11 : 9;
+      camera.position.z = baseZ;
       camera.updateProjectionMatrix();
       measure();
     };
@@ -302,6 +340,12 @@ export function MathScene() {
     // --- frame loop ---------------------------------------------------------
     let progress = target();
     let time = 4; // start mid-motion so the first frame is already composed
+    let prevY = scrub.y;
+    let vel = 0;
+    // First load at the top of the page: the field assembles. Deeper links
+    // and reduced motion start composed.
+    let intro = reduce || window.scrollY > 40 ? 1 : 0;
+    const tilt = { x: 0, y: 0 };
     let last = performance.now();
     let raf = 0;
     let lost = false;
@@ -322,14 +366,38 @@ export function MathScene() {
       points.scale.setScalar(narrow ? 0.72 : 1);
       points.position.x = narrow ? 0 : sample(OFFSET_X, progress);
       points.position.y = narrow
-        ? sample(OFFSET_Y_NARROW, progress) * (camera.position.z / 13)
+        ? sample(OFFSET_Y_NARROW, progress) * (baseZ / 13)
         : sample(OFFSET_Y, progress);
       uniforms.uOpacity.value = sample(narrow ? OPACITY_SMALL : OPACITY, progress);
+
+      // Scroll speed (screens per second, smoothed) loosens the field.
+      if (!reduce && dt > 0) {
+        const speed = Math.abs(scrub.y - prevY) / dt / Math.max(1, window.innerHeight);
+        vel = lerp(vel, Math.min(1, speed * 0.55), 1 - Math.exp(-dt * 6));
+        uniforms.uVel.value = vel;
+        if (intro < 1) intro = Math.min(1, intro + dt / 2.2);
+      }
+      prevY = scrub.y;
+      uniforms.uIntro.value = intro;
 
       const k = reduce ? 1 : 1 - Math.exp(-dt * 2.5);
       camera.position.x = lerp(camera.position.x, pointer.x * 0.55, k);
       camera.position.y = lerp(camera.position.y, -pointer.y * 0.35, k);
+      // Between sections the camera eases back a little and returns as the
+      // next figure forms, so a transition reads as a move through space.
+      const between = Math.sin(Math.PI * (progress - Math.floor(progress)));
+      camera.position.z = baseZ + (reduce ? 0 : 0.7 * between * between);
       camera.lookAt(0, 0, 0);
+      uniforms.uCamZ.value = camera.position.z;
+
+      // The figure turns slightly toward the cursor: a change of angle, not a spin.
+      tilt.x = lerp(tilt.x, pointer.x * 0.16, k);
+      tilt.y = lerp(tilt.y, pointer.y * 0.09, k);
+      points.rotation.y = tilt.x;
+      points.rotation.x = tilt.y;
+
+      dustUniforms.uTime.value = time;
+      dustUniforms.uScroll.value = scrub.y / Math.max(1, window.innerHeight);
 
       if (!reduce) {
         uniforms.uAspect.value = camera.aspect;
@@ -390,6 +458,8 @@ export function MathScene() {
       renderer.domElement.removeEventListener("webglcontextlost", onLost);
       geometry.dispose();
       material.dispose();
+      dustGeometry.dispose();
+      dustMaterial.dispose();
       lorenzTex.dispose();
       renderer.dispose();
       renderer.domElement.remove();

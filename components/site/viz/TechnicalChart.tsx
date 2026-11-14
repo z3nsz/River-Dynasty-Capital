@@ -11,7 +11,10 @@ import { emaAlpha, emaStep, gaussian, mulberry32 } from "@/lib/site/math";
  * BAR seconds; every TICKS ticks make one candle (open = the previous close,
  * high/low over the ticks, close = the last tick). The newest candle forms
  * live, and the chart slides by a fraction of a tick every frame, so motion
- * is fluid rather than stepped. EMA(12),
+ * is fluid rather than stepped. Beside the candles (on wider canvases) sits
+ * an illustrative order book: resting size at LEVELS prices each side of the
+ * last price, deeper levels larger, sizes churning every tick and the ladder
+ * shifting as price trades through a level. EMA(12),
  * EMA(26) and the MACD histogram are updated incrementally. Market structure
  * is drawn as the last confirmed swing high/low; a level is retired once
  * price closes through it.
@@ -21,6 +24,8 @@ const N = 190;
 const BAR = 0.11; // seconds per bar
 const SWING = 6; // bars each side to confirm a swing point
 const TICKS = 5; // ticks per candle
+const LEVELS = 9; // order-book levels each side
+const BOOK_W = 66; // px, the ladder's width (drawn only on canvases ≥ 520 px)
 const aFast = emaAlpha(12);
 const aSlow = emaAlpha(26);
 const aSig = emaAlpha(9);
@@ -37,6 +42,10 @@ export function TechnicalChart() {
     rand: () => number;
     bars: Bar[];
     count: number; // ticks so far, so candle boundaries stay fixed as the window slides
+    bid: Float32Array; // resting size per level, 0–1 (index 0 = at the touch)
+    ask: Float32Array;
+    dBid: Float32Array; // displayed sizes, eased toward the book
+    dAsk: Float32Array;
     next: number;
     drift: number;
     noise: number;
@@ -84,6 +93,23 @@ export function TechnicalChart() {
     if (s.swingHi !== null && p > s.swingHi) s.swingHi = null;
     if (s.swingLo !== null && p < s.swingLo) s.swingLo = null;
 
+    // order book: price trading up lifts the asks (the touch level is
+    // consumed, a fresh one joins at the back) and leaves a new thin bid
+    // behind it; the reverse for a down move. Then every level churns.
+    const move = p - last.p;
+    if (Math.abs(move) > 0.12) {
+      const [eaten, joined] = move > 0 ? [s.ask, s.bid] : [s.bid, s.ask];
+      eaten.copyWithin(0, 1);
+      eaten[LEVELS - 1] = 0.5 + 0.5 * s.rand();
+      joined.copyWithin(1, 0, LEVELS - 1);
+      joined[0] = 0.08 + 0.2 * s.rand();
+    }
+    for (let i = 0; i < LEVELS; i++) {
+      const deep = 0.3 + 0.7 * ((i + 1) / LEVELS);
+      s.bid[i] += ((0.2 + 0.8 * s.rand()) * deep - s.bid[i]) * 0.22;
+      s.ask[i] += ((0.2 + 0.8 * s.rand()) * deep - s.ask[i]) * 0.22;
+    }
+
     s.next = p + s.drift + s.noise + 0.004 * (100 - p);
   };
 
@@ -95,6 +121,10 @@ export function TechnicalChart() {
         rand,
         bars: Array.from({ length: N }, () => ({ ...seed })),
         count: 0,
+        bid: new Float32Array(LEVELS).fill(0.4),
+        ask: new Float32Array(LEVELS).fill(0.4),
+        dBid: new Float32Array(LEVELS),
+        dAsk: new Float32Array(LEVELS),
         next: 100,
         drift: 0.06,
         noise: 0,
@@ -126,7 +156,8 @@ export function TechnicalChart() {
     const priceB = h * 0.72;
     const momT = priceB + 14;
     const momB = h - 6;
-    const plotR = w - 44;
+    const bookW = w >= 520 ? BOOK_W : 0;
+    const plotR = w - 44 - bookW;
     const dx = plotR / (N - 1);
     const x = (i: number) => (i - phase) * dx;
 
@@ -268,6 +299,24 @@ export function TechnicalChart() {
     ctx.textBaseline = "middle";
     ctx.fillText(tipP.toFixed(2), plotR + 8, y(tipP));
 
+    // order book: asks above the last price, bids below, anchored to its tag
+    if (bookW) {
+      const row = 6;
+      const x0 = plotR + 48;
+      const maxW = w - x0;
+      const mid = Math.min(priceB - LEVELS * row - 6, Math.max(padT + LEVELS * row + 6, y(tipP)));
+      const ease = reduce ? 1 : 1 - Math.exp(-dt * 9);
+      for (let i = 0; i < LEVELS; i++) {
+        s.dBid[i] += (s.bid[i] - s.dBid[i]) * ease;
+        s.dAsk[i] += (s.ask[i] - s.dAsk[i]) * ease;
+        const fade = 0.85 - 0.5 * (i / (LEVELS - 1));
+        ctx.fillStyle = `rgba(201,128,111,${fade})`;
+        ctx.fillRect(x0, mid - 5 - (i + 1) * row + 1, Math.max(1, s.dAsk[i] * maxW), row - 2);
+        ctx.fillStyle = `rgba(47,191,173,${fade})`;
+        ctx.fillRect(x0, mid + 5 + i * row + 1, Math.max(1, s.dBid[i] * maxW), row - 2);
+      }
+    }
+
     // legend
     ctx.textBaseline = "alphabetic";
     ctx.font = `11px ${mono}`;
@@ -277,6 +326,7 @@ export function TechnicalChart() {
       ["EMA 12", C.ink],
       ["EMA 26", C.blue],
       ["MACD", C.muted],
+      ...(bookW ? ([["Depth", C.coral]] as const) : []),
     ] as const) {
       if (label === "Candles") {
         ctx.fillStyle = up;
@@ -299,7 +349,7 @@ export function TechnicalChart() {
         ref={canvasRef}
         className="rdc-viz-canvas"
         role="img"
-        aria-label="Illustrative live candlestick chart with 12- and 26-period exponential moving averages, MACD momentum histogram and swing-level market structure."
+        aria-label="Illustrative live candlestick chart with 12- and 26-period exponential moving averages, MACD momentum histogram, swing-level market structure and an order-book depth ladder."
       />
     </div>
   );

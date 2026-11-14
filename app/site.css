@@ -356,6 +356,9 @@ html[data-rdc-section="strategy"] .rdc-nav-links .rdc-nav-link[href="#strategy"]
 .rdc-discipline-n span {
   color: var(--faint);
 }
+.rdc-discipline-n b {
+  font-weight: inherit;
+}
 
 /* --------------------------------------------------------- viz panels */
 .rdc-viz {
@@ -573,6 +576,89 @@ html[data-rdc-section="close"] .rdc-caption {
   color: var(--muted);
 }
 
+/* --------------------------------------------------------------- intro */
+/* The opening: mark, hairline, lift. All CSS, so it can never hang. */
+.rdc-intro {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rdc-site {
+    --hero-delay: 1.3s; /* the headline waits for the cover */
+  }
+  html.rdc-seen .rdc-site {
+    --hero-delay: 0.25s;
+  }
+  .rdc-intro {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    background: var(--bg);
+    pointer-events: none;
+    animation: rdc-intro-out 0.9s cubic-bezier(0.65, 0, 0.35, 1) 1.1s both;
+  }
+  html.rdc-seen .rdc-intro {
+    display: none;
+  }
+  .rdc-intro .rdc-nav-logo {
+    animation: rdc-intro-mark 0.8s cubic-bezier(0.2, 0.75, 0.1, 1) both;
+  }
+  .rdc-intro i {
+    position: relative;
+    width: 7.5rem;
+    height: 1px;
+    overflow: hidden;
+    background: rgba(231, 236, 234, 0.12);
+  }
+  .rdc-intro i::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--blue), var(--teal));
+    transform-origin: 0 50%;
+    animation: rdc-intro-line 0.95s cubic-bezier(0.65, 0, 0.35, 1) 0.1s both;
+  }
+  @keyframes rdc-intro-mark {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.92);
+    }
+  }
+  @keyframes rdc-intro-line {
+    from {
+      transform: scaleX(0);
+    }
+  }
+  @keyframes rdc-intro-out {
+    to {
+      opacity: 0;
+      visibility: hidden;
+    }
+  }
+  /* the nav and scroll cue arrive with the headline */
+  .rdc-nav {
+    animation: rdc-drop-in 0.9s cubic-bezier(0.2, 0.75, 0.1, 1) calc(var(--hero-delay) - 0.1s) both;
+  }
+  .rdc-scroll-cue {
+    animation: rdc-fade-in 1s ease calc(var(--hero-delay) + 1.1s) both;
+  }
+  @keyframes rdc-drop-in {
+    from {
+      opacity: 0;
+      transform: translateY(-12px);
+    }
+  }
+  @keyframes rdc-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
 /* -------------------------------------------------------------- reveal */
 @media (prefers-reduced-motion: no-preference) {
   .rdc-site [data-reveal] {
@@ -612,12 +698,12 @@ html[data-rdc-section="close"] .rdc-caption {
   /* the hero plays on load: words rise, then each teal full stop drops in */
   .rdc-hero-title .rdc-w > span {
     animation: rdc-word-in 1.15s cubic-bezier(0.2, 0.75, 0.1, 1) both;
-    animation-delay: calc(var(--i) * 150ms + 250ms);
+    animation-delay: calc(var(--i) * 150ms + var(--hero-delay));
     transform-origin: 0 100%;
   }
   .rdc-hero-title .rdc-dot {
     animation: rdc-dot-in 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) both;
-    animation-delay: calc(var(--i) * 150ms + 900ms);
+    animation-delay: calc(var(--i) * 150ms + var(--hero-delay) + 650ms);
   }
   @keyframes rdc-word-in {
     from {

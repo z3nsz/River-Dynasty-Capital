@@ -1,6 +1,7 @@
 import { LazyMathScene } from "@/components/site/LazyMathScene";
 import { LoginLink, SectionLink, SiteNav } from "@/components/site/SiteNav";
 import { SceneHud } from "@/components/site/SceneHud";
+import { Intro } from "@/components/site/Intro";
 import { Reveal } from "@/components/site/Reveal";
 import { Logo } from "@/components/Logo";
 import { Words } from "@/components/site/Words";
@@ -19,6 +20,7 @@ const DISCIPLINES = [
 export default function Home() {
   return (
     <div className="rdc-site" id="top">
+      <Intro />
       <LazyMathScene />
       {/* depth: a soft vignette and fine grain between the scene and the text */}
       <div className="rdc-atmos" aria-hidden="true" />
@@ -46,7 +48,7 @@ export default function Home() {
 
         <section id="firm" className="rdc-firm" data-scene="1">
           <div className="rdc-firm-text" data-reveal>
-            <p className="rdc-eyebrow rdc-kicker">The Firm</p>
+            <p className="rdc-eyebrow rdc-kicker"><span data-scramble>The Firm</span></p>
             <p className="rdc-firm-line">
               <Words text="An independent proprietary investment and trading operation." />
             </p>
@@ -58,7 +60,7 @@ export default function Home() {
             {/* the reveal watches the text itself: the header is nearly a
                 screen tall, so it would fire while the heading is still below */}
             <div className="rdc-strategy-head-text" data-reveal>
-              <p className="rdc-eyebrow rdc-kicker">Strategy</p>
+              <p className="rdc-eyebrow rdc-kicker"><span data-scramble>Strategy</span></p>
               <h2>
                 <Words text="Three disciplines. One approach." />
               </h2>
@@ -69,7 +71,7 @@ export default function Home() {
             <article key={n} className="rdc-discipline" data-scene={scene}>
               <div className="rdc-discipline-text" data-reveal>
                 <p className="rdc-eyebrow rdc-kicker rdc-discipline-n">
-                  {n} <span>/ 03</span>
+                  <b data-scramble>{n}</b> <span>/ 03</span>
                 </p>
                 <h3>
                   <Words text={title} />

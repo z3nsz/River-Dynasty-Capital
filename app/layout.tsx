@@ -39,6 +39,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      // the public site's intro script may add a class before hydration
+      suppressHydrationWarning
       className={`${newsreader.variable} ${inter.variable} ${plexMono.variable}`}
     >
       <body className="min-h-screen antialiased">{children}</body>

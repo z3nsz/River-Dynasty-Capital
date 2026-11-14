@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { scrambleText } from "./motion";
 
 /** Adds .is-in to [data-reveal] elements as they enter the viewport. */
 export function Reveal() {
@@ -17,6 +18,8 @@ export function Reveal() {
       for (const e of entries) {
         if (e.isIntersecting) {
           e.target.classList.add("is-in");
+          // mono labels resolve like a readout as their block arrives
+          e.target.querySelectorAll<HTMLElement>("[data-scramble]").forEach((el) => scrambleText(el, 700));
           observer.unobserve(e.target);
         }
       }

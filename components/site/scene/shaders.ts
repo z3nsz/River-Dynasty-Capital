@@ -27,6 +27,9 @@ uniform float uOpacity;
 uniform float uGx;
 uniform float uGy;
 uniform float uAspect;   // viewport width / height
+uniform float uVel;      // smoothed scroll speed, 0 (still) – 1 (fast)
+uniform float uIntro;    // 0 → 1 as the field assembles on first load
+uniform float uCamZ;     // camera distance, for depth shading
 // Recent cursor path: xy = NDC position, z = age in seconds, w = impulse (0–1).
 #define TRAIL 48
 uniform vec4 uTrail[TRAIL];
@@ -167,7 +170,7 @@ vec3 price(vec2 uv, float t) {
   float x = (uv.x - 0.5) * 9.5;
   float s = x * 0.75 + t * 0.32;
   float s2 = s - b * 0.38;
-  float y = 0.55 * sin(0.9 * s2) + 0.24 * sin(2.3 * s2 + 1.0) + x * 0.06;
+  float y = 0.44 * sin(0.9 * s2) + 0.2 * sin(2.3 * s2 + 1.0) + x * 0.04;
   if (b < 0.5) y += 0.12 * sin(5.1 * s + 2.0) + 0.05 * sin(11.7 * s + 0.5);
   else if (b < 1.5) y += 0.05 * sin(5.1 * s2 + 2.0);
   y += (vb - 0.5) * 0.03;
@@ -237,6 +240,12 @@ float lookShade(float i, float seed) {
   if (i > 1.5 && i < 2.5) return floor(aChess.w) / 100.0;
   return 0.55 + 0.45 * hash(seed * 3.0);
 }
+// A signal travelling along the strands: the waves, the price lines and the
+// Möbius strip are all one-dimensional carriers, so a pulse of brightness
+// runs down each of them, one band after another.
+float lookPulse(float i) {
+  return (i < 0.5 || (i > 3.5 && i < 4.5) || i > 5.5) ? 1.0 : 0.0;
+}
 // Every scene reacts to the cursor: the dots spread away from it and spring back.
 float lookInteract(float i) {
   return 1.0;
@@ -256,6 +265,25 @@ void main() {
   vec3 pos = mix(a, b, m);
   float lift = sin(m * 3.14159265);
   pos += (vec3(hash(aSeed * 17.0), hash(aSeed * 29.0), hash(aSeed * 43.0)) - 0.5) * lift * 0.32;
+
+  // Scroll energy: while the page is moving the field loosens into a slow
+  // swirl, in proportion to scroll speed, and tightens again as it stops.
+  if (uVel > 0.001) {
+    float ph = aSeed * 40.0 + uTime * 1.7;
+    pos += vec3(sin(ph + pos.y * 1.3), cos(ph * 1.2 + pos.x * 1.1), sin(ph * 0.8 + pos.x)) * uVel * 0.11;
+  }
+
+  // First load: the dots stream in from a scattered band below and assemble.
+  float introA = 1.0;
+  if (uIntro < 0.999) {
+    float e = clamp(uIntro * 1.45 - aSeed * 0.45, 0.0, 1.0);
+    e = 1.0 - pow(1.0 - e, 3.0);
+    vec3 from = vec3((hash(aSeed * 5.3) - 0.5) * 15.0,
+                     (hash(aSeed * 9.1) - 0.5) * 1.6 - 3.4,
+                     (hash(aSeed * 2.7) - 0.5) * 7.0);
+    pos = mix(from, pos, e);
+    introA = e;
+  }
 
   // Cursor: every recent point on the cursor's path is an impulse that pushes
   // nearby dots outward. Each dot then returns like a damped spring: a quick
@@ -289,15 +317,29 @@ void main() {
   float vis = mix(lookVis(uA, aUV), lookVis(uB, aUV), m);
   float size = mix(lookSize(uA, aSeed), lookSize(uB, aSeed), m);
 
+  // Signal pulse along the strands (see lookPulse).
+  float band = bandOf(aUV);
+  float pulseW = mix(lookPulse(uA), lookPulse(uB), m);
+  float pulse = 0.0;
+  if (pulseW > 0.001) {
+    float head = fract(uTime * 0.11 + band * 0.37) * 1.4 - 0.2;
+    float dq = (aUV.x - head) * 15.0;
+    pulse = exp(-dq * dq) * pulseW;
+  }
+
   vec4 mv = modelViewMatrix * vec4(pos, 1.0);
   gl_Position = projectionMatrix * mv;
-  gl_PointSize = vis < 0.01 ? 0.0 : uSize * uPixelRatio * size / -mv.z;
+  gl_PointSize = vis < 0.01 ? 0.0 : uSize * uPixelRatio * size * (1.0 + 0.3 * pulse) / -mv.z;
+
+  // Depth: dots on the far side of a figure are dimmer, so volume reads.
+  // (the figure's own middle plane stays at full strength)
+  float far = clamp((-mv.z - uCamZ - 0.25) / 3.2, 0.0, 1.0);
 
   // Logo gradient (blue → teal) across the field, the top band lifted toward white.
-  float band = bandOf(aUV);
   vec3 base = mix(vec3(0.18, 0.50, 0.72), vec3(0.09, 0.69, 0.63), aUV.x);
-  vColor = mix(base, vec3(0.90, 0.94, 0.93), 0.22 + 0.16 * (2.0 - band) / 2.0);
-  vAlpha = uOpacity * vis * mix(lookShade(uA, aSeed), lookShade(uB, aSeed), m);
+  vColor = mix(base, vec3(0.90, 0.94, 0.93), min(1.0, 0.22 + 0.16 * (2.0 - band) / 2.0 + 0.5 * pulse));
+  vAlpha = min(1.0, uOpacity * vis * mix(lookShade(uA, aSeed), lookShade(uB, aSeed), m)
+           * mix(1.0, 0.5, far) * (1.0 + 0.9 * pulse)) * introA;
 }
 `;
 
@@ -310,5 +352,41 @@ void main() {
   if (d > 0.5) discard;
   // Solid disc with a thin anti-aliased rim, so dots read crisp, not as glows.
   gl_FragColor = vec4(vColor, (1.0 - smoothstep(0.34, 0.5, d)) * vAlpha);
+}
+`;
+
+/*
+ * A sparse layer of motes far behind and in front of the field. They drift
+ * slowly and slide past at different rates as the page scrolls, so the space
+ * has depth and is never completely still.
+ */
+export const dustVertexShader = /* glsl */ `
+uniform float uTime;
+uniform float uScroll;      // scroll progress in screens
+uniform float uPixelRatio;
+attribute float aSeed;
+varying float vAlpha;
+
+void main() {
+  vec3 p = position;
+  float depth = (p.z + 6.0) / 12.0;                 // 0 far … 1 near
+  const float H = 16.0;
+  // nearer motes pass faster; all rise slowly on their own
+  p.y = mod(p.y + uScroll * (0.6 + 2.4 * depth) + uTime * (0.03 + 0.05 * aSeed) + H * 0.5, H) - H * 0.5;
+  p.x += 0.25 * sin(uTime * 0.12 + aSeed * 30.0);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  gl_Position = projectionMatrix * mv;
+  gl_PointSize = uPixelRatio * (8.0 + 14.0 * aSeed) / -mv.z;
+  float edge = 1.0 - smoothstep(H * 0.36, H * 0.5, abs(p.y));   // fade at the wrap
+  vAlpha = (0.1 + 0.22 * fract(aSeed * 7.0)) * edge * (0.75 + 0.25 * sin(uTime * 0.7 + aSeed * 50.0));
+}
+`;
+
+export const dustFragmentShader = /* glsl */ `
+varying float vAlpha;
+void main() {
+  float d = length(gl_PointCoord - 0.5);
+  if (d > 0.5) discard;
+  gl_FragColor = vec4(0.62, 0.82, 0.84, (1.0 - smoothstep(0.2, 0.5, d)) * vAlpha);
 }
 `;
